@@ -20,16 +20,21 @@ const confidenceLabel: Record<Confidence, string> = {
 export function SourceSheet({ title, intro, footprint, baseline, onClose }: Props) {
   return (
     <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="source-title">
-      <div className="topbar">
-        <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
-          ‹
-        </button>
-        <p className="screen-kicker">Math and sources</p>
-        <span className="topbar-spacer" />
-      </div>
+      <header className="hero sheet-hero">
+        <div className="topbar">
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
+            ‹
+          </button>
+          <span className="topbar-spacer" />
+          <span className="topbar-spacer" />
+        </div>
+        <div className="hero-copy">
+          <p className="kicker">Math and sources</p>
+          <h2 id="source-title">{title}</h2>
+          <p className="lede">{intro}</p>
+        </div>
+      </header>
       <div className="sheet-scroll">
-        <h2 id="source-title">{title}</h2>
-        <p className="lede">{intro}</p>
         <p className="disclaimer">{ENERGY_MIX_NOTE}</p>
         {footprint.lines.map((line) => {
           const before = baseline?.lines.find((item) => item.id === line.id);

@@ -52,8 +52,8 @@ const heatOptions: ChoiceOption<HeatSource>[] = [
 
 const meatMarks = [
   { value: 0, label: "None" },
-  { value: 7, label: "~ once a day" },
-  { value: 14, label: "~ twice a day" },
+  { value: 7, label: "~once a day" },
+  { value: 14, label: "~twice a day" },
   { value: 21, label: "Every meal" },
 ];
 
@@ -104,7 +104,7 @@ export const habits: HabitMeta[] = [
     id: "homeSize",
     category: "home",
     name: "Home size",
-    question: "Which home is closest to yours?",
+    question: "What type of home do you live in?",
     detail: "Size stands in for how much heat the building needs. It is not your utility bill.",
     why: "A larger home usually takes more fuel through a winter. Moving is a big life change. It is here so you can see the scale, not as a suggestion to relocate.",
     control: { type: "choice", options: homeOptions },

@@ -26,18 +26,21 @@ export function Baseline({
 
   return (
     <PhoneShell
-      kicker={`${category?.label ?? "Now"} · ${step + 1} of ${habits.length}`}
       onBack={() => {
         if (step === 0) onBack();
         else setStep((current) => current - 1);
       }}
       backLabel={step === 0 ? "Back to welcome" : "Previous question"}
-    >
-      <div className="stack stack-lg">
-        <div>
+      hero={
+        <>
+          <p className="kicker">
+            {category?.label ?? "Now"} · {step + 1} of {habits.length}
+          </p>
           <h2>{habit.question}</h2>
-          <p className="detail">{habit.detail}</p>
-        </div>
+          <p className="lede">{habit.detail}</p>
+        </>
+      }
+      overlap={
         <HabitControl
           id={habit.id}
           value={draft[habit.id]}
@@ -45,17 +48,18 @@ export function Baseline({
           onChange={setValue}
           showFeel={false}
         />
-        <button
-          className="btn-primary"
-          type="button"
-          onClick={() => {
-            if (last) onDone(draft);
-            else setStep((current) => current + 1);
-          }}
-        >
-          {last ? "See your compass" : "Next"}
-        </button>
-      </div>
+      }
+    >
+      <button
+        className="btn-primary"
+        type="button"
+        onClick={() => {
+          if (last) onDone(draft);
+          else setStep((current) => current + 1);
+        }}
+      >
+        {last ? "See your compass" : "Next"}
+      </button>
     </PhoneShell>
   );
 }

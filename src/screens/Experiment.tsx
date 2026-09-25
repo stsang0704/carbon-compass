@@ -25,64 +25,63 @@ export function Experiment({ habitId, baseline, scenario, onChange, onBack, onMi
 
   return (
     <PhoneShell
-      kicker={area?.label}
       onBack={onBack}
       action={
         <button className="text-button" type="button" onClick={onMix}>
-          Mix
+          Your Impact
         </button>
       }
-    >
-      <div className="stack stack-lg">
-        <div>
+      hero={
+        <>
+          <p className="kicker">{area?.label}</p>
           <h2>{habit.name}</h2>
-          <p className="detail">{habit.question}</p>
-        </div>
+          <p className="lede">{habit.question}</p>
+        </>
+      }
+      overlap={
         <div className="compare">
-          <div>
+          <div className="compare-tile">
             <span className="compare-label">Current lifestyle</span>
             <strong>{formatAnswer(habitId, baseline[habitId])}</strong>
           </div>
-          <span className="compare-arrow" aria-hidden="true">
-            →
-          </span>
-          <div>
+          <div className="compare-tile compare-next">
             <span className="compare-label">If you try this</span>
             <strong>{formatAnswer(habitId, scenario[habitId])}</strong>
           </div>
         </div>
-        <HabitControl
-          id={habitId}
-          value={scenario[habitId]}
-          baseline={baseline[habitId]}
-          onChange={onChange}
-        />
-        <SavingsBanner baselineKg={current.totals.carbon} scenarioKg={next.totals.carbon} />
-        <div className="depth-row">
-          <button className="depth" type="button" onClick={() => onChange(baseline[habitId])}>
-            As now
-          </button>
-          <button
-            className="depth"
-            type="button"
-            onClick={() => onChange(easeValue(habitId, baseline[habitId]))}
-          >
-            Ease off
-          </button>
-          <button
-            className="depth"
-            type="button"
-            onClick={() => onChange(furtherValue(habitId, baseline[habitId]))}
-          >
-            Go further
-          </button>
-        </div>
-        <p className="why">{habit.why}</p>
-        <ImpactTrio totals={next.totals} baseline={current.totals} onOpen={onSources} />
-        <button className="btn-secondary" type="button" onClick={onSources}>
-          Why this number
+      }
+    >
+      <HabitControl
+        id={habitId}
+        value={scenario[habitId]}
+        baseline={baseline[habitId]}
+        onChange={onChange}
+      />
+      <SavingsBanner baselineKg={current.totals.carbon} scenarioKg={next.totals.carbon} />
+      <div className="depth-row">
+        <button className="depth" type="button" onClick={() => onChange(baseline[habitId])}>
+          As now
+        </button>
+        <button
+          className="depth"
+          type="button"
+          onClick={() => onChange(easeValue(habitId, baseline[habitId]))}
+        >
+          Ease off
+        </button>
+        <button
+          className="depth"
+          type="button"
+          onClick={() => onChange(furtherValue(habitId, baseline[habitId]))}
+        >
+          Go further
         </button>
       </div>
+      <p className="why">{habit.why}</p>
+      <ImpactTrio totals={next.totals} baseline={current.totals} onOpen={onSources} />
+      <button className="btn-secondary" type="button" onClick={onSources}>
+        Why this number
+      </button>
     </PhoneShell>
   );
 }

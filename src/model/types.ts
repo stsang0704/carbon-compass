@@ -84,7 +84,7 @@ export const categories: { id: Category; label: string; bearing: string }[] = [
   { id: "food", label: "Food", bearing: "N" },
   { id: "travel", label: "Travel", bearing: "E" },
   { id: "home", label: "Home", bearing: "S" },
-  { id: "stuff", label: "Stuff", bearing: "W" },
+  { id: "stuff", label: "Clothing", bearing: "W" },
 ];
 
 export const habitOrder: HabitId[] = [

@@ -85,10 +85,12 @@ export function bestSmallMove(baseline: Answers): {
   let habitSaved = -Infinity;
 
   for (const area of categories) {
+    const group = habitsIn(area.id);
+    if (group.length === 0) continue;
     let scenario = baseline;
-    let areaHabit: HabitId = habitsIn(area.id)[0].id;
+    let areaHabit: HabitId = group[0].id;
     let areaHabitSaved = -Infinity;
-    for (const habit of habitsIn(area.id)) {
+    for (const habit of group) {
       const eased = easeValue(habit.id, baseline[habit.id]);
       scenario = replaceAnswer(scenario, habit.id, eased);
       const solo = replaceAnswer(baseline, habit.id, eased);
@@ -121,7 +123,7 @@ export function bestSmallMove(baseline: Answers): {
       .sort((a, b) => b.carbon - a.carbon)[0];
     return {
       category: largest,
-      habitId: line.habitIds[0],
+      habitId: line?.habitIds[0] ?? "meatMealsPerWeek",
       categorySaved: 0,
       habitSaved: 0,
     };

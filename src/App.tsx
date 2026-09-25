@@ -58,6 +58,17 @@ export function App() {
     setScreen({ name: "welcome" });
   }
 
+  if (source && profile && scenario) {
+    return (
+      <Sources
+        baseline={profile.baseline}
+        scenario={scenario}
+        focusHabitId={source.habitId}
+        onClose={() => setSource(null)}
+      />
+    );
+  }
+
   return (
     <>
       {screen.name === "welcome" ? <Welcome onStart={() => setScreen({ name: "baseline" })} /> : null}
@@ -102,14 +113,6 @@ export function App() {
           onOpen={(habitId) => setScreen({ name: "experiment", habitId, returnTo: "mix" })}
           onBack={() => setScreen({ name: "compass" })}
           onSources={() => setSource({})}
-        />
-      ) : null}
-      {source && profile && scenario ? (
-        <Sources
-          baseline={profile.baseline}
-          scenario={scenario}
-          focusHabitId={source.habitId}
-          onClose={() => setSource(null)}
         />
       ) : null}
     </>
