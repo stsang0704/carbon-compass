@@ -1,3 +1,4 @@
+import { published } from "../data/factors";
 import type { Impacts, Metric } from "./types";
 
 export function formatCarbon(kg: number): { value: string; unit: string } {
@@ -33,6 +34,132 @@ export function formatMetric(metric: Metric, amount: number): { value: string; u
   if (metric === "carbon") return formatCarbon(amount);
   if (metric === "water") return formatWater(amount);
   return formatEnergy(amount);
+}
+
+/** Annual CO2e as miles in a typical gasoline passenger vehicle. Never invents a factor. */
+export function drivingMilesFromCarbon(carbonKg: number): number {
+  if (!Number.isFinite(carbonKg) || carbonKg <= 0) return 0;
+  return carbonKg / published.vehicleKgCo2ePerMile;
+}
+
+export function formatDrivingMiles(carbonKg: number): string {
+  return Math.round(drivingMilesFromCarbon(carbonKg)).toLocaleString("en-US");
+}
+
+export function carsFromCarbon(carbonKg: number): number {
+  if (!Number.isFinite(carbonKg) || carbonKg <= 0) return 0;
+  return carbonKg / published.vehicleKgCo2ePerYear;
+}
+
+export function formatCarCount(carbonKg: number): string {
+  const cars = carsFromCarbon(carbonKg);
+  if (cars <= 0) return "0";
+  if (cars < 10) {
+    const tenths = Math.round(cars * 10) / 10;
+    return tenths % 1 === 0 ? String(tenths) : tenths.toFixed(1);
+  }
+  return Math.round(cars).toLocaleString("en-US");
+}
+
+export function carHeading(carbonKg: number): string {
+  return `≈ ${formatCarCount(carbonKg)} ${carNoun(carbonKg)}`;
+}
+
+export function carEquivalenceLine(carbonKg: number): string {
+  const label = formatCarCount(carbonKg);
+  const noun = roundedCars(carbonKg) === 1 ? "typical gasoline car" : "typical gasoline cars";
+  return `That's comparable to the annual emissions of ${label} ${noun}.`;
+}
+
+function roundedCars(carbonKg: number): number {
+  const cars = carsFromCarbon(carbonKg);
+  if (cars < 10) return Math.round(cars * 10) / 10;
+  return Math.round(cars);
+}
+
+function carNoun(carbonKg: number): string {
+  return roundedCars(carbonKg) === 1 ? "gasoline car" : "gasoline cars";
+}
+
+export function formatCarbonPerYear(carbonKg: number): string {
+  const parts = formatCarbon(carbonKg);
+  return `${parts.value} ${parts.unit} CO₂e / year`;
+}
+
+export function gallonsFromCarbon(carbonKg: number): number {
+  if (!Number.isFinite(carbonKg) || carbonKg <= 0) return 0;
+  return carbonKg / published.gasolineKgCo2PerGallon;
+}
+
+export function formatGasolineGallons(carbonKg: number): string {
+  return Math.round(gallonsFromCarbon(carbonKg)).toLocaleString("en-US");
+}
+
+/** Saved CO2e as urban trees using the published annual sequestration factor. */
+export function treesFromCarbonSaved(savedKg: number): number {
+  if (!Number.isFinite(savedKg) || savedKg <= 0) return 0;
+  return savedKg / published.urbanTreeKgCo2ePerYear;
+}
+
+export function formatTreeCount(savedKg: number): string {
+  const trees = treesFromCarbonSaved(savedKg);
+  if (trees < 1) return "";
+  return Math.round(trees).toLocaleString("en-US");
+}
+
+export function treeHeading(savedKg: number): string {
+  const label = formatTreeCount(savedKg);
+  if (!label) return "";
+  return `≈ ${label} ${label === "1" ? "tree" : "trees"}`;
+}
+
+export function treeEquivalenceLine(savedKg: number): string {
+  const trees = treesFromCarbonSaved(savedKg);
+  if (trees < 1) return "";
+  const count = Math.round(trees);
+  if (count === 1) {
+    return "Your changes could avoid as much CO₂ as approximately 1 tree absorbs in a year.";
+  }
+  return `Your changes could avoid as much CO₂ as approximately ${count.toLocaleString("en-US")} trees absorb in a year.`;
+}
+
+export function canShowTrees(savedKg: number): boolean {
+  return treesFromCarbonSaved(savedKg) >= 1;
+}
+
+export function avoidedMilesHeading(savedKg: number): string {
+  if (!Number.isFinite(savedKg) || savedKg <= 0) return "";
+  return `≈ ${formatDrivingMiles(savedKg)} miles`;
+}
+
+export function avoidedMilesLine(): string {
+  return "Your changes could avoid roughly the same amount of CO₂ as driving a typical gasoline car this distance.";
+}
+
+export function formatCarbonSaved(savedKg: number): string {
+  if (!Number.isFinite(savedKg) || savedKg <= 0) return "";
+  return `${Math.round(savedKg).toLocaleString("en-US")} kg CO₂e saved`;
+}
+
+export type SavedEquivalence =
+  | { kind: "trees"; heading: string; unit: string; line: string }
+  | { kind: "miles"; heading: string; unit: string; line: string }
+  | { kind: "none"; heading: string; unit: string; line: string };
+
+/** Pick a readable unit from the actual saving. Never invents a larger number. */
+export function savedEquivalence(savedKg: number): SavedEquivalence {
+  if (!Number.isFinite(savedKg) || savedKg <= 0) {
+    return { kind: "none", heading: "", unit: "", line: "" };
+  }
+  if (canShowTrees(savedKg)) {
+    return { kind: "trees", heading: treeHeading(savedKg), unit: "", line: treeEquivalenceLine(savedKg) };
+  }
+  return {
+    kind: "miles",
+    heading: avoidedMilesHeading(savedKg),
+    unit: "of driving avoided",
+    line: avoidedMilesLine(),
+  };
 }
 
 export function carbonShift(baselineKg: number, scenarioKg: number): {

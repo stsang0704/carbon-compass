@@ -5,13 +5,20 @@ export const published = {
   beefKgCo2ePerKg: 99.48,
   poultryKgCo2ePerKg: 9.87,
   porkKgCo2ePerKg: 12.31,
+  fishKgCo2ePerKg: 13.63,
+  plantKgCo2ePerKg: 0.53,
   beefLitersPerKg: 15400,
   poultryLitersPerKg: 4300,
   porkLitersPerKg: 6000,
+  fishLitersPerKg: 1974,
+  plantLitersPerKg: 322,
   beefMjPerKg: 43,
   poultryMjPerKg: 22,
   porkMjPerKg: 31.5,
   vehicleKgCo2ePerMile: 0.393,
+  gasolineKgCo2PerGallon: 8.89,
+  vehicleKgCo2ePerYear: 4290,
+  urbanTreeKgCo2ePerYear: 60,
   vehicleMpg: 22.8,
   gasolineBtuPerGallon: 114000,
   btuPerKwh: 3412,
@@ -49,7 +56,23 @@ export const assumptions = {
   heatPumpCop: 2.8,
   thermostatDegrees: 3,
   percentPerDegree: 3,
+  typicalDietMealsPerWeek: 21,
+  typicalMilesPerWeek: 100,
+  typicalFlightsPerYear: 2,
+  typicalClothesPerSeason: 6,
+  typicalOrdersPerMonth: 4,
+  typicalWinterF: 66,
+  minWinterF: 50,
   garmentKg: 0.4,
+  daysPerYear: 365,
+  typicalShowerMinutes: 8,
+  shorterShowerMinutes: 6,
+  showerGallonsPerMinute: 2.1,
+  showersPerDay: 0.67,
+  waterLbPerGallon: 8.34,
+  waterHeatRiseF: 70,
+  insulationHeatingShare: 0.15,
+  secondhandShare: 0.5,
   heatingLoadKwh: {
     apartment: 4500,
     small: 11000,
@@ -76,6 +99,14 @@ export const mixedMeatMjPerKg =
   assumptions.meatSharePoultry * published.poultryMjPerKg +
   assumptions.meatSharePork * published.porkMjPerKg +
   assumptions.meatShareBeef * published.beefMjPerKg;
+
+export const chickenPorkKgCo2ePerKg =
+  (published.poultryKgCo2ePerKg + published.porkKgCo2ePerKg) / 2;
+
+export const chickenPorkLitersPerKg =
+  (published.poultryLitersPerKg + published.porkLitersPerKg) / 2;
+
+export const chickenPorkMjPerKg = (published.poultryMjPerKg + published.porkMjPerKg) / 2;
 
 export const gridKgPerKwh =
   published.egridLbCo2ePerMwh / published.lbPerKg / 1000;
@@ -114,6 +145,10 @@ export const garmentLiters =
   assumptions.garmentKg *
   ((published.cottonLitersPerKgFibre + published.polyesterLitersPerKgFibre) / 2);
 
+/** kWh to raise one gallon of water by the assumed hot-water rise. */
+export const waterHeatKwhPerGallon =
+  (assumptions.waterLbPerGallon * assumptions.waterHeatRiseF) / published.btuPerKwh;
+
 export const mjToKwh = 1 / 3.6;
 
 const epaEquivalencies =
@@ -123,6 +158,9 @@ const egrid = "https://www.epa.gov/egrid/summary-data";
 const poore = "https://ourworldindata.org/grapher/ghg-per-kg-poore";
 const water =
   "https://www.waterfootprint.org/resources/Mekonnen-Hoekstra-2012-WaterFootprintFarmAnimalProducts_1.pdf";
+const cropWater =
+  "https://waterfootprint.org/resources/Reports/Report47-WaterFootprintCrops-Vol1.pdf";
+const fishWater = "https://doi.org/10.1016/j.scitotenv.2015.07.045";
 const wrap =
   "https://www.wrap.ngo/sites/default/files/2021-01/WRAP-valuing-our-clothes-2012-07-11.pdf";
 const usda = "https://www.usda.gov/foodlossandwaste";
@@ -156,7 +194,7 @@ export const factors: Record<string, Factor> = {
     region: "Global average",
     includes: "The same supply-chain boundary as the beef figure, for poultry meat.",
     excludes:
-      "Pork is a little higher, about 12 kg CO2e per kg. This row uses poultry as the stand-in for other meat.",
+      "Pork is a little higher, about 12 kg CO2e per kg. Sides, drinks, and cooking at home are not included.",
     confidence: "medium",
   },
   "beef-water": {
@@ -209,6 +247,107 @@ export const factors: Record<string, Factor> = {
     excludes: "Not the full supply chain, and not your kitchen.",
     confidence: "low",
   },
+  "pork-carbon": {
+    id: "pork-carbon",
+    name: "Pork greenhouse gases",
+    valueLabel: "12.31 kg CO2e per kg of pig meat",
+    source: "Poore and Nemecek, Science, global mean via Our World in Data",
+    year: "2018",
+    url: poore,
+    region: "Global average",
+    includes: "The same supply-chain boundary as the beef figure, for pig meat.",
+    excludes: "Sides, drinks, and cooking at home are not included.",
+    confidence: "medium",
+  },
+  "pork-water": {
+    id: "pork-water",
+    name: "Pork virtual water",
+    valueLabel: "6,000 liters per kg of pig meat",
+    source: "Mekonnen and Hoekstra, Water Footprint Network",
+    year: "2012",
+    url: water,
+    region: "Global average",
+    includes: "Green, blue, and grey water for pig meat.",
+    excludes: "Cooking water is not included.",
+    confidence: "medium",
+  },
+  "pork-energy": {
+    id: "pork-energy",
+    name: "Pork farm energy",
+    valueLabel: "31.5 MJ per kg, the midpoint of 18–45 MJ",
+    source: "de Vries and de Boer, review of livestock life-cycle studies",
+    year: "2010",
+    url: deVries,
+    region: "Range across published studies",
+    includes: "On-farm energy reported for pork in that review, converted here from megajoules to kilowatt-hours.",
+    excludes: "Not the full supply chain, and not your kitchen.",
+    confidence: "low",
+  },
+  "plant-carbon": {
+    id: "plant-carbon",
+    name: "Vegetables and plant-based foods",
+    valueLabel: "0.53 kg CO2e per kg of other vegetables",
+    source: "Poore and Nemecek, Science, global mean via Our World in Data",
+    year: "2018",
+    url: poore,
+    region: "Global average",
+    includes:
+      "The study's global mean for other vegetables. This stands in for vegetables and plant-based foods on the plate.",
+    excludes:
+      "Tofu is higher, about 3.16 kg CO2e per kg. A tofu-heavy week is understated. Fruit, grains, dairy, and cooking at home are not modeled separately.",
+    confidence: "medium",
+  },
+  "plant-water": {
+    id: "plant-water",
+    name: "Vegetable virtual water",
+    valueLabel: "322 liters per kg of vegetables",
+    source: "Mekonnen and Hoekstra, The green, blue and grey water footprint of crops",
+    year: "2011",
+    url: cropWater,
+    region: "Global average",
+    includes: "Green, blue, and grey water for vegetables as a crop group.",
+    excludes: "It is not the water you pour while cooking.",
+    confidence: "medium",
+  },
+  "fish-carbon": {
+    id: "fish-carbon",
+    name: "Farmed fish greenhouse gases",
+    valueLabel: "13.63 kg CO2e per kg of farmed fish",
+    source: "Poore and Nemecek, Science, global mean via Our World in Data",
+    year: "2018",
+    url: poore,
+    region: "Global average",
+    includes: "The study's global mean for farmed fish, with the same supply-chain boundary as the meat figures.",
+    excludes:
+      "Wild-caught fish can be lower. Farmed prawns are higher, about 27 kg CO2e per kg. A prawn-heavy week is understated.",
+    confidence: "medium",
+  },
+  "fish-water": {
+    id: "fish-water",
+    name: "Farmed fish virtual water",
+    valueLabel: "1,974 liters per kg of farmed fish",
+    source: "Pahlow, van Oel, Mekonnen and Hoekstra, Science of the Total Environment",
+    year: "2015",
+    url: fishWater,
+    region: "Global average for fed aquaculture",
+    includes: "The water footprint of feed crops for farmed fish, as reported for marine animal products.",
+    excludes: "Wild-caught fish are not in this number. Cooking water is not included.",
+    confidence: "low",
+  },
+  "diet-mix": {
+    id: "diet-mix",
+    name: "Diet as four shares of the plate",
+    valueLabel: "21 meals a week, 100 g each, split by the percentages you entered",
+    source: "Carbon Compass method, using Poore and Nemecek greenhouse gases for each food group",
+    year: "2026",
+    url: poore,
+    region: "Your mix, with global average factors",
+    includes:
+      "The four percentages always stand in for 100% of the modeled diet. Each share is 21 meals a week × 100 g × 52 weeks × that percentage, then multiplied by that food's published factor. Vegetables use other vegetables (0.53 kg CO2e/kg). Chicken/pork is the average of poultry (9.87) and pig meat (12.31). Fish uses farmed fish (13.63). Beef uses beef from beef herds (99.48).",
+    excludes:
+      "Drinks, dairy as its own group, cooking at home, and restaurant meals as a separate system are not included. The 21 meals and 100 g portion are an assumption so a week can use per-kilogram factors.",
+    confidence: "medium",
+  },
   "mixed-meat": {
     id: "mixed-meat",
     name: "A meal with meat, type unknown",
@@ -225,14 +364,14 @@ export const factors: Record<string, Factor> = {
   },
   "portion": {
     id: "portion",
-    name: "Meat on the plate",
-    valueLabel: "100 grams of boneless meat per meal",
+    name: "Food on the plate",
+    valueLabel: "100 grams of food per meal",
     source: "Carbon Compass assumption, so a meal can use a per-kilogram factor",
     year: "2026",
     url: poore,
     region: "Assumption",
-    includes: "A fixed portion so weekly meals become kilograms.",
-    excludes: "A large steak is more than this. A few bites of bacon are less.",
+    includes: "A fixed portion so weekly meals become kilograms, then split by the diet percentages.",
+    excludes: "A large steak is more than this. A salad plate can be more volume and less mass.",
     confidence: "low",
   },
   "food-waste": {
@@ -246,7 +385,7 @@ export const factors: Record<string, Factor> = {
     includes:
       "USDA discusses roughly 30–40% of the US food supply lost or wasted. The three answers are a household scale inspired by that range.",
     excludes:
-      "Only the meat meals in this app are scaled. The rest of a diet is not modeled. The percentages are not a measurement of your kitchen.",
+      "Only the diet modeled above is scaled. The percentages are not a measurement of your kitchen.",
     confidence: "low",
   },
   "vehicle-carbon": {
@@ -261,6 +400,62 @@ export const factors: Record<string, Factor> = {
       "Fuel burned by an average gasoline car and light truck, at 22.8 miles per gallon, including methane and nitrous oxide.",
     excludes: "Building the car, the road, and most of the work of refining the fuel.",
     confidence: "high",
+  },
+  "driving-equivalent": {
+    id: "driving-equivalent",
+    name: "A carbon saving as miles of driving avoided",
+    valueLabel: "kg CO2e saved ÷ 0.393 kg CO2e per mile",
+    source: "US EPA Greenhouse Gas Equivalencies Calculator, gasoline car and light truck factor",
+    year: "2024",
+    url: epaEquivalencies,
+    region: "United States average",
+    includes:
+      "The same 0.393 kg CO2e per mile used for driving in this app, so a carbon reduction can be pictured as an equivalent distance not driven in a typical gasoline passenger vehicle. Used when the saving is smaller than one urban tree.",
+    excludes:
+      "This is an emissions equivalence, not a claim that you skipped that drive. Building the car, the road, and electric vehicles are not in this translation.",
+    confidence: "high",
+  },
+  "vehicle-year": {
+    id: "vehicle-year",
+    name: "A typical gasoline car over one year",
+    valueLabel: "4.29 metric tons CO2e per gasoline passenger vehicle per year (4,290 kg)",
+    source: "US EPA Greenhouse Gas Equivalencies Calculator, gasoline-powered passenger vehicles per year",
+    year: "2024",
+    url: epaEquivalencies,
+    region: "United States average",
+    includes:
+      "10,917 miles a year at 22.8 miles per gallon, with methane and nitrous oxide included so the total is CO2e. Used only to picture a year of carbon as a number of cars.",
+    excludes:
+      "Electric vehicles, building the car, and the road. This is a comparison for the year you entered, not extra cars added to the model.",
+    confidence: "high",
+  },
+  "gasoline-equivalent": {
+    id: "gasoline-equivalent",
+    name: "A year of carbon as gallons of gasoline",
+    valueLabel: "8.89 kg CO2 per gallon of gasoline (8.89 × 10⁻³ metric tons)",
+    source: "US EPA Greenhouse Gas Equivalencies Calculator, gallons of gasoline consumed",
+    year: "2024",
+    url: epaEquivalencies,
+    region: "United States factor",
+    includes:
+      "Carbon dioxide from burning one gallon of motor gasoline. Your year of CO2e is divided by this factor so it can be pictured as gallons burned.",
+    excludes:
+      "This is an emissions equivalence, not a claim that you burned that gasoline. Methane, nitrous oxide, making the fuel, and electric vehicles are not in this gallon factor.",
+    confidence: "high",
+  },
+  "urban-tree": {
+    id: "urban-tree",
+    name: "Carbon an urban tree takes up in a year",
+    valueLabel: "0.060 metric tons CO2 per urban tree per year (60 kg)",
+    source: "US EPA Greenhouse Gas Equivalencies Calculator, urban tree seedlings grown for 10 years",
+    year: "2024",
+    url: epaEquivalencies,
+    region: "United States urban average",
+    includes:
+      "A probability-weighted average for a medium-growth coniferous or deciduous tree planted in an urban setting, expressed as an annual rate over ten years of growth.",
+    excludes:
+      "A wild forest, a specific species, or a carbon offset you can buy. This is a comparison so a reduction can be pictured as trees, not extra trees planted in the model.",
+    confidence: "medium",
   },
   "vehicle-energy": {
     id: "vehicle-energy",
@@ -347,7 +542,7 @@ export const factors: Record<string, Factor> = {
     url: egrid,
     region: "Assumption for a US-style winter",
     includes: "A round annual heating need for three sizes, treated as energy that must be met.",
-    excludes: "Your bill, insulation, climate, and furnace efficiency. These are not meter readings.",
+    excludes: "Your bill, climate, and furnace efficiency. These are not meter readings. A later insulation step can reduce this load.",
     confidence: "low",
   },
   "thermostat": {
@@ -450,6 +645,48 @@ export const factors: Record<string, Factor> = {
     excludes:
       "The product inside the box. A US route can differ from the study average. Packaging water is not included.",
     confidence: "medium",
+  },
+  "shower-hot-water": {
+    id: "shower-hot-water",
+    name: "Hot water for a typical shower",
+    valueLabel: "8 minutes, 2.1 gallons per minute, 0.67 showers a day",
+    source: "US EPA WaterSense showerhead materials and supporting statement",
+    year: "2017",
+    url: "https://www.epa.gov/watersense/showerheads",
+    region: "United States average",
+    includes:
+      "A typical person's shower length and how often they shower, at the 2.1 gpm average flow EPA uses in its consumer water-and-energy note. Water is heated 70°F, 8.34 lb per gallon, using the same gas or electricity factor as the home's heat. Shorter showers in this app are 6 minutes.",
+    excludes:
+      "A household of several people, a different showerhead, or heating the rest of the home's tap water. Tap-water volume is not added to the water total.",
+    confidence: "medium",
+  },
+  "insulation-saving": {
+    id: "insulation-saving",
+    name: "Air sealing and insulation",
+    valueLabel: "15% of the home's heating energy",
+    source: "ENERGY STAR / EPA, national average savings from air sealing and adding insulation",
+    year: "2024",
+    url: "https://www.energystar.gov/saveathome/seal_insulate/methodology",
+    region: "United States national average",
+    includes:
+      "EPA's modeled 15% average reduction in heating and cooling from sealing leaks and adding insulation in attics, floors, and rim joists. This app applies that 15% only to the heating load already in the model.",
+    excludes:
+      "Cooling, a specific house, and a contractor's audit. Real savings vary by climate and how leaky the house was.",
+    confidence: "medium",
+  },
+  "secondhand-clothes": {
+    id: "secondhand-clothes",
+    name: "Secondhand instead of new fiber",
+    valueLabel: "Half of the year's new items counted as already-made clothes",
+    source: "WRAP fiber factors already used for new garments; secondhand avoids growing that fiber again",
+    year: "2012",
+    url: wrap,
+    region: "Assumption on top of the WRAP fiber figures",
+    includes:
+      "A defined bigger clothing shift: half of the items you still buy new are treated as secondhand, so their fiber carbon, water, and derived energy drop out.",
+    excludes:
+      "The trip to the shop, cleaning a used garment, and a claim that every other purchase is actually thrifted.",
+    confidence: "low",
   },
   "diesel-energy": {
     id: "diesel-energy",

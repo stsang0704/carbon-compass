@@ -1,11 +1,10 @@
 import { MetricStrips } from "../components/MetricStrips";
 import { PhoneShell } from "../components/PhoneShell";
-import { SavingsBanner } from "../components/SavingsBanner";
-import { changedHabitIds, formatAnswer, habits } from "../data/habits";
-import { calculate, replaceAnswer } from "../model/calculate";
-import { carbonPhrase } from "../model/format";
-import type { Answers, Category, Depth, HabitId } from "../model/types";
-import { AVERAGES_NOTE } from "../model/types";
+import { recommendationById, recommendationSavedKg, type RecId } from "../data/recommendations";
+import { calculate } from "../model/calculate";
+import { formatCarbonSaved, savedEquivalence } from "../model/format";
+import type { Answers, Category } from "../model/types";
+import { AVERAGES_NOTE, categories } from "../model/types";
 
 const marks: Record<Category, string> = {
   food: "🌱",
@@ -17,85 +16,81 @@ const marks: Record<Category, string> = {
 type Props = {
   baseline: Answers;
   scenario: Answers;
-  depth: Depth | "custom";
-  onDepth: (depth: Depth) => void;
-  onOpen: (habitId: HabitId) => void;
+  selected: RecId[];
+  onRemove: (id: RecId) => void;
   onBack: () => void;
   onSources: () => void;
 };
 
-export function Mix({ baseline, scenario, depth, onDepth, onOpen, onBack, onSources }: Props) {
-  const changed = changedHabitIds(baseline, scenario);
+export function Mix({ baseline, scenario, selected, onRemove, onBack, onSources }: Props) {
   const current = calculate(baseline);
   const next = calculate(scenario);
-  const count = changed.length;
+  const count = selected.length;
+  const savedKg = current.totals.carbon - next.totals.carbon;
+  const equivalence = savedEquivalence(savedKg);
+  const hasSaving = equivalence.kind !== "none";
+  const changeLine = count === 1 ? "1 change. It adds up." : `${count} changes. They add up.`;
 
   return (
     <PhoneShell
       onBack={onBack}
       hero={
-        <>
-          <p className="kicker">Your Impact</p>
-          <h2>
-            {count === 0
-              ? "You changed 0 habits."
-              : `You changed ${count} ${count === 1 ? "habit" : "habits"}.`}
-          </h2>
-          <p className="lede">
-            {count === 0
-              ? "This matches how you live now. Ease off fills in a modest shift. Any row can be tuned on its own."
-              : "See how your chosen changes add up. Each habit shows its individual impact, while your total combines them all."}
-          </p>
-        </>
-      }
-      overlap={
         count === 0 ? (
-          <MetricStrips totals={next.totals} />
+          <>
+            <p className="kicker">Your Impact</p>
+            <h2>Your impact starts with one change.</h2>
+            <p className="lede">
+              Explore Food, Travel, Home, and Clothing to find realistic changes that work for you.
+            </p>
+          </>
         ) : (
-          <SavingsBanner baselineKg={current.totals.carbon} scenarioKg={next.totals.carbon} />
+          <>
+            <p className="kicker">Your Impact</p>
+            <p className="hero-count">{changeLine}</p>
+            {hasSaving ? (
+              <>
+                <h2 className={equivalence.kind === "miles" ? "hero-gallons" : "hero-trees"}>
+                  {equivalence.heading}
+                </h2>
+                {equivalence.unit ? <p className="hero-gallons-unit">{equivalence.unit}</p> : null}
+                <p className="lede">{equivalence.line}</p>
+                <p className="hero-carbon">{formatCarbonSaved(savedKg)}</p>
+              </>
+            ) : null}
+            <p className={hasSaving ? "hero-close" : "lede"}>
+              Small individual choices add up. What you do matters.
+            </p>
+          </>
         )
       }
+      overlap={
+        <MetricStrips totals={next.totals} baseline={count > 0 ? current.totals : undefined} />
+      }
     >
-      {count === 0 ? null : (
-        <>
-          <MetricStrips totals={next.totals} baseline={current.totals} />
-          <p className="disclaimer">{AVERAGES_NOTE}</p>
-        </>
-      )}
-      <div className="section-head">
-        <h3>Habits</h3>
-        <div className="preset-row">
-          <Preset label="Keep close" pressed={depth === "close"} onClick={() => onDepth("close")} />
-          <Preset label="Ease off" pressed={depth === "ease"} onClick={() => onDepth("ease")} />
-          <Preset label="Go further" pressed={depth === "further"} onClick={() => onDepth("further")} />
-        </div>
-      </div>
+      <p className="disclaimer">{AVERAGES_NOTE}</p>
       <div className="habit-list">
-        {habits.map((habit) => {
-          const solo = calculate(replaceAnswer(baseline, habit.id, scenario[habit.id]));
-          const delta = solo.totals.carbon - current.totals.carbon;
-          const edited = baseline[habit.id] !== scenario[habit.id];
+        {selected.map((id) => {
+          const rec = recommendationById(id);
+          const saved = recommendationSavedKg(baseline, rec);
+          const area = categories.find((item) => item.id === rec.category);
           return (
-            <button
-              key={habit.id}
-              className={`plant-card habit-row ${edited ? "changed" : ""}`}
-              type="button"
-              onClick={() => onOpen(habit.id)}
-            >
-              <span className={`glyph glyph-${habit.category}`} aria-hidden="true">
-                {marks[habit.category]}
+            <div key={id} className="plant-card habit-row changed rec-mix-row">
+              <span className={`glyph glyph-${rec.category}`} aria-hidden="true">
+                {marks[rec.category]}
               </span>
               <span className="plant-copy">
                 <span className="plant-top">
-                  <span className="plant-title">{habit.name}</span>
-                  <span className={`status-pill ${edited ? "status-live" : ""}`}>{carbonPhrase(delta)}</span>
+                  <span className="plant-title">{rec.title}</span>
+                  <span className={`status-pill ${saved > 0 ? "status-live" : ""}`}>
+                    ↓ {Math.round(saved).toLocaleString("en-US")} kg
+                  </span>
                 </span>
-                <span className="plant-sub">
-                  Now {formatAnswer(habit.id, baseline[habit.id])}
-                  {edited ? ` → ${formatAnswer(habit.id, scenario[habit.id])}` : ""}
-                </span>
+                <span className="plant-sub">{area?.label}</span>
               </span>
-            </button>
+              <button className="text-button rec-remove" type="button" onClick={() => onRemove(id)}>
+                Remove
+              </button>
+            </div>
           );
         })}
       </div>
@@ -103,13 +98,5 @@ export function Mix({ baseline, scenario, depth, onDepth, onOpen, onBack, onSour
         Where the numbers come from
       </button>
     </PhoneShell>
-  );
-}
-
-function Preset({ label, pressed, onClick }: { label: string; pressed: boolean; onClick: () => void }) {
-  return (
-    <button className="preset" type="button" aria-pressed={pressed} onClick={onClick}>
-      {label}
-    </button>
   );
 }

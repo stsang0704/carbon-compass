@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { HabitControl } from "../components/HabitControl";
 import { PhoneShell } from "../components/PhoneShell";
-import { habits, starterAnswers } from "../data/habits";
+import { dietIsComplete } from "../data/diet";
+import { blankAnswers, habits } from "../data/habits";
 import { categories } from "../model/types";
 import type { Answers, HabitId } from "../model/types";
 
@@ -15,10 +16,11 @@ export function Baseline({
   onBack: () => void;
 }) {
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<Answers>(initial ?? starterAnswers);
+  const [draft, setDraft] = useState<Answers>(initial ?? blankAnswers);
   const habit = habits[step];
   const category = categories.find((item) => item.id === habit.category);
   const last = step === habits.length - 1;
+  const blocked = habit.id === "dietShare" && !dietIsComplete(draft.dietShare);
 
   function setValue(value: Answers[HabitId]) {
     setDraft((current) => ({ ...current, [habit.id]: value }));
@@ -53,6 +55,7 @@ export function Baseline({
       <button
         className="btn-primary"
         type="button"
+        disabled={blocked}
         onClick={() => {
           if (last) onDone(draft);
           else setStep((current) => current + 1);

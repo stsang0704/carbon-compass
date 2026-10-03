@@ -1,5 +1,8 @@
 import {
   assumptions,
+  chickenPorkKgCo2ePerKg,
+  chickenPorkLitersPerKg,
+  chickenPorkMjPerKg,
   dieselKgPerKwh,
   flightKgPerPassengerMile,
   garmentKgCo2e,
@@ -7,21 +10,21 @@ import {
   gasKgPerKwh,
   gridKgPerKwh,
   jetKwhPerGallon,
-  mixedMeatKgCo2ePerKg,
-  mixedMeatLitersPerKg,
-  mixedMeatMjPerKg,
   mjToKwh,
   published,
   vehicleKwhPerMile,
+  waterHeatKwhPerGallon,
 } from "../data/factors";
-import { easeValue, habitsIn } from "../data/habits";
+import { dietCategories, resolvedDiet } from "../data/diet";
+import { classifyHome, homeLabel } from "../data/home";
+import { easeValue, habitsIn, resolvedNumber } from "../data/habits";
 import type {
   Answers,
   Category,
+  DietCategory,
   Footprint,
   HabitId,
   HeatSource,
-  HeatingHabit,
   HomeSize,
   ImpactLine,
   Impacts,
@@ -33,11 +36,12 @@ const portion = assumptions.meatPortionKg;
 
 export function calculate(answers: Answers): Footprint {
   const lines = [
-    meatLine(answers),
+    dietLine(answers),
     foodWasteLine(answers),
     drivingLine(answers),
     flightLine(answers),
     heatingLine(answers),
+    showerLine(answers),
     clothesLine(answers),
     ordersLine(answers),
   ];
@@ -81,7 +85,7 @@ export function bestSmallMove(baseline: Answers): {
   const base = calculate(baseline);
   let category: Category = "food";
   let categorySaved = -Infinity;
-  let habitId: HabitId = "meatMealsPerWeek";
+  let habitId: HabitId = "dietShare";
   let habitSaved = -Infinity;
 
   for (const area of categories) {
@@ -123,7 +127,7 @@ export function bestSmallMove(baseline: Answers): {
       .sort((a, b) => b.carbon - a.carbon)[0];
     return {
       category: largest,
-      habitId: line?.habitIds[0] ?? "meatMealsPerWeek",
+      habitId: line?.habitIds[0] ?? "dietShare",
       categorySaved: 0,
       habitSaved: 0,
     };
@@ -132,35 +136,65 @@ export function bestSmallMove(baseline: Answers): {
   return { category, habitId, categorySaved, habitSaved };
 }
 
-function meatLine(answers: Answers): ImpactLine {
-  const meals = answers.meatMealsPerWeek * assumptions.weeksPerYear;
-  const kg = meals * portion;
-  const carbon = kg * mixedMeatKgCo2ePerKg;
-  const water = kg * mixedMeatLitersPerKg;
-  const energy = kg * mixedMeatMjPerKg * mjToKwh;
+function dietLine(answers: Answers): ImpactLine {
+  const share = resolvedDiet(answers.dietShare);
+  const meals = assumptions.typicalDietMealsPerWeek * assumptions.weeksPerYear;
+  const kgYear = meals * portion;
+  let carbon = 0;
+  let water = 0;
+  let energy = 0;
+  const mixSteps: string[] = [];
+  for (const category of dietCategories) {
+    const kg = kgYear * (share[category.id] / 100);
+    const factors = dietFactors[category.id];
+    const sliceCarbon = kg * factors.kgCo2e;
+    const sliceWater = kg * factors.liters;
+    const sliceEnergy =
+      factors.mj === null ? sliceCarbon / dieselKgPerKwh : kg * factors.mj * mjToKwh;
+    carbon += sliceCarbon;
+    water += sliceWater;
+    energy += sliceEnergy;
+    if (share[category.id] > 0) {
+      mixSteps.push(
+        `${plainNumber(share[category.id], 0)}% ${category.label}: ${plainNumber(kg, 1)} kg × ${plainNumber(factors.kgCo2e, 2)} kg CO2e per kg = ${plainNumber(sliceCarbon, 0)} kg CO2e.`,
+      );
+    }
+  }
   return {
-    id: "meat",
-    habitIds: ["meatMealsPerWeek"],
+    id: "diet",
+    habitIds: ["dietShare"],
     category: "food",
-    title: "Meals with meat",
+    title: "Your diet",
     carbon,
     water,
     energy,
     waterKind: "virtual",
     energyKind: "embodied",
-    factorIds: ["mixed-meat", "portion"],
+    factorIds: [
+      "diet-mix",
+      "plant-carbon",
+      "poultry-carbon",
+      "pork-carbon",
+      "fish-carbon",
+      "beef-carbon",
+      "plant-water",
+      "poultry-water",
+      "pork-water",
+      "fish-water",
+      "beef-water",
+      "portion",
+    ],
     steps: [
-      `${plainNumber(answers.meatMealsPerWeek, 0)} meals a week × ${assumptions.weeksPerYear} weeks = ${plainNumber(meals, 0)} meals a year.`,
-      `Each meal counts ${plainNumber(portion * 1000, 0)} g. The mix is half poultry, 30% pork, and 20% beef or lamb, because the question does not name the meat.`,
-      `${plainNumber(kg, 1)} kg × ${plainNumber(mixedMeatKgCo2ePerKg, 2)} kg CO2e per kg = ${plainNumber(carbon, 0)} kg CO2e.`,
-      `${plainNumber(kg, 1)} kg × ${plainNumber(mixedMeatLitersPerKg, 0)} L per kg = ${plainNumber(water, 0)} L of virtual water.`,
-      `${plainNumber(kg, 1)} kg × ${plainNumber(mixedMeatMjPerKg, 1)} MJ per kg ÷ 3.6 = ${plainNumber(energy, 0)} kWh of farm energy.`,
+      `${plainNumber(assumptions.typicalDietMealsPerWeek, 0)} meals a week × ${assumptions.weeksPerYear} weeks = ${plainNumber(meals, 0)} meals a year. Each meal counts ${plainNumber(portion * 1000, 0)} g, so ${plainNumber(kgYear, 1)} kg of food is split by your percentages.`,
+      ...mixSteps,
+      `Together: ${plainNumber(carbon, 0)} kg CO2e, ${plainNumber(water, 0)} L of virtual water, and ${plainNumber(energy, 0)} kWh of farm or derived energy.`,
+      "Chicken/pork uses the average of poultry and pig meat. Plant and fish energy is translated from carbon using diesel, because those foods do not have a farm-energy figure in this model.",
     ],
   };
 }
 
 function foodWasteLine(answers: Answers): ImpactLine {
-  const eaten = impactsOf(meatLine(answers));
+  const eaten = impactsOf(dietLine(answers));
   const extra = assumptions.wasteExtra[answers.foodWaste];
   const carbon = eaten.carbon * extra;
   const water = eaten.water * extra;
@@ -177,9 +211,9 @@ function foodWasteLine(answers: Answers): ImpactLine {
     energy,
     waterKind: "virtual",
     energyKind: "embodied",
-    factorIds: ["food-waste", "mixed-meat"],
+    factorIds: ["food-waste", "diet-mix"],
     steps: [
-      `Meat meals above, before waste: ${plainNumber(eaten.carbon, 0)} kg CO2e, ${plainNumber(eaten.water, 0)} L, ${plainNumber(eaten.energy, 0)} kWh.`,
+      `Diet above, before waste: ${plainNumber(eaten.carbon, 0)} kg CO2e, ${plainNumber(eaten.water, 0)} L, ${plainNumber(eaten.energy, 0)} kWh.`,
       `${label} thrown out means about ${plainNumber(extra * 100, 0)}% more of that food is produced than eaten.`,
       `${plainNumber(eaten.carbon, 0)} kg × ${plainNumber(extra, 2)} = ${plainNumber(carbon, 0)} kg CO2e from food that is wasted.`,
       `The same share applies to virtual water and farm energy.`,
@@ -188,7 +222,8 @@ function foodWasteLine(answers: Answers): ImpactLine {
 }
 
 function drivingLine(answers: Answers): ImpactLine {
-  const miles = answers.milesPerWeek * assumptions.weeksPerYear;
+  const weekly = resolvedNumber(answers.milesPerWeek, assumptions.typicalMilesPerWeek);
+  const miles = weekly * assumptions.weeksPerYear;
   const carbon = miles * published.vehicleKgCo2ePerMile;
   const energy = miles * vehicleKwhPerMile;
   return {
@@ -203,9 +238,11 @@ function drivingLine(answers: Answers): ImpactLine {
     energyKind: "fuel",
     factorIds: ["vehicle-carbon", "vehicle-energy"],
     steps: [
-      answers.milesPerWeek === 0
+      weekly === 0
         ? "No miles, so this row is zero."
-        : `${plainNumber(answers.milesPerWeek, 0)} miles a week × ${assumptions.weeksPerYear} weeks = ${plainNumber(miles, 0)} miles a year.`,
+        : answers.milesPerWeek === null
+          ? `Miles were left blank, so this uses the typical ${plainNumber(assumptions.typicalMilesPerWeek, 0)} miles a week × ${assumptions.weeksPerYear} weeks = ${plainNumber(miles, 0)} miles a year.`
+          : `${plainNumber(weekly, 0)} miles a week × ${assumptions.weeksPerYear} weeks = ${plainNumber(miles, 0)} miles a year.`,
       `${plainNumber(miles, 0)} miles × ${plainNumber(published.vehicleKgCo2ePerMile, 3)} kg CO2e per mile = ${plainNumber(carbon, 0)} kg CO2e.`,
       `${plainNumber(miles, 0)} miles × ${plainNumber(vehicleKwhPerMile, 2)} kWh of gasoline per mile = ${plainNumber(energy, 0)} kWh.`,
       "Water for refining fuel is not included.",
@@ -214,7 +251,8 @@ function drivingLine(answers: Answers): ImpactLine {
 }
 
 function flightLine(answers: Answers): ImpactLine {
-  const miles = answers.flightsPerYear * assumptions.domesticRoundTripMiles;
+  const trips = resolvedNumber(answers.flightsPerYear, assumptions.typicalFlightsPerYear);
+  const miles = trips * assumptions.domesticRoundTripMiles;
   const carbon = miles * flightKgPerPassengerMile;
   const gallons =
     (miles * published.flightKgCo2PerPassengerMile) / published.jetKgCo2PerGallon;
@@ -231,7 +269,9 @@ function flightLine(answers: Answers): ImpactLine {
     energyKind: "fuel",
     factorIds: ["flight-carbon", "flight-distance", "flight-energy"],
     steps: [
-      `${plainNumber(answers.flightsPerYear, 0)} round trips × ${plainNumber(assumptions.domesticRoundTripMiles, 0)} passenger-miles = ${plainNumber(miles, 0)} passenger-miles.`,
+      answers.flightsPerYear === null
+        ? `Flights were left blank, so this uses the typical ${plainNumber(assumptions.typicalFlightsPerYear, 0)} round trips × ${plainNumber(assumptions.domesticRoundTripMiles, 0)} passenger-miles = ${plainNumber(miles, 0)} passenger-miles.`
+        : `${plainNumber(trips, 0)} round trips × ${plainNumber(assumptions.domesticRoundTripMiles, 0)} passenger-miles = ${plainNumber(miles, 0)} passenger-miles.`,
       `That distance is the app's typical US domestic round trip: 1,000 miles each way.`,
       `${plainNumber(miles, 0)} passenger-miles × ${plainNumber(flightKgPerPassengerMile, 3)} kg CO2e per passenger-mile = ${plainNumber(carbon, 0)} kg CO2e.`,
       `Fuel from the CO2 portion: ${plainNumber(miles * published.flightKgCo2PerPassengerMile, 0)} kg CO2 ÷ ${published.jetKgCo2PerGallon} kg per gallon = ${plainNumber(gallons, 0)} gallons.`,
@@ -242,8 +282,10 @@ function flightLine(answers: Answers): ImpactLine {
 }
 
 function heatingLine(answers: Answers): ImpactLine {
-  const load = assumptions.heatingLoadKwh[answers.homeSize];
-  const heatNeed = scaledHeat(load, answers.heatingHabit);
+  const size = categorizeHome(answers.homeType);
+  const envelope = resolvedInsulation(answers.insulationFactor);
+  const load = assumptions.heatingLoadKwh[size] * envelope;
+  const heatNeed = scaledHeat(load, answers.winterTempF);
   const source = resolvedHeat(answers.heatSource);
   const site = source === "heatPump" ? heatNeed / assumptions.heatPumpCop : heatNeed;
   const carbon = source === "gas" ? heatNeed * gasKgPerKwh : site * gridKgPerKwh;
@@ -253,11 +295,11 @@ function heatingLine(answers: Answers): ImpactLine {
     source === "gas"
       ? `${plainNumber(heatNeed, 0)} kWh of gas × ${plainNumber(gasKgPerKwh, 3)} kg CO2e per kWh = ${plainNumber(carbon, 0)} kg CO2e.`
       : `${plainNumber(site, 0)} kWh of electricity × ${plainNumber(gridKgPerKwh, 3)} kg CO2e per kWh = ${plainNumber(carbon, 0)} kg CO2e.`;
-  const factorIds = ["heating-load", "thermostat", "gas-carbon", "grid-carbon", "heat-pump"];
+  const factorIds = ["heating-load", "insulation-saving", "thermostat", "gas-carbon", "grid-carbon", "heat-pump"];
   if (answers.heatSource === "unknown") factorIds.unshift("unknown-heat");
   return {
     id: "heating",
-    habitIds: ["homeSize", "heatSource", "heatingHabit"],
+    habitIds: ["homeType", "winterTempF"],
     category: "home",
     title: "Heating the home",
     carbon,
@@ -270,8 +312,11 @@ function heatingLine(answers: Answers): ImpactLine {
       answers.heatSource === "unknown"
         ? "I don't know, so this uses a gas furnace. That is the default here, and natural gas is the most common main heating fuel in US homes."
         : `${sourceLabel} is the system doing most of the winter work.`,
-      `${homeLabel(answers.homeSize)} assumed heating need: ${plainNumber(load, 0)} kWh a year.`,
-      thermostatStep(load, answers.heatingHabit, heatNeed),
+      `${homeAssumptionStep(answers.homeType, size, assumptions.heatingLoadKwh[size])}`,
+      envelope < 1
+        ? `Air sealing and insulation: ${plainNumber(assumptions.heatingLoadKwh[size], 0)} kWh × ${plainNumber(envelope, 2)} = ${plainNumber(load, 0)} kWh after a ${plainNumber(assumptions.insulationHeatingShare * 100, 0)}% heating cut.`
+        : "No extra insulation step is applied to that load yet.",
+      thermostatStep(load, answers.winterTempF, heatNeed),
       source === "heatPump"
         ? `${sourceLabel}, assumed COP ${assumptions.heatPumpCop}: ${plainNumber(heatNeed, 0)} ÷ ${assumptions.heatPumpCop} = ${plainNumber(site, 0)} kWh of electricity.`
         : `${sourceLabel} meets that need with ${plainNumber(site, 0)} kWh on site.`,
@@ -281,10 +326,48 @@ function heatingLine(answers: Answers): ImpactLine {
   };
 }
 
+function showerLine(answers: Answers): ImpactLine {
+  const minutes = resolvedNumber(answers.showerMinutes, assumptions.typicalShowerMinutes);
+  const gallons =
+    minutes *
+    assumptions.showerGallonsPerMinute *
+    assumptions.showersPerDay *
+    assumptions.daysPerYear;
+  const energy = gallons * waterHeatKwhPerGallon;
+  const source = resolvedHeat(answers.heatSource);
+  const carbon = source === "gas" ? energy * gasKgPerKwh : energy * gridKgPerKwh;
+  const sourceLabel = source === "gas" ? "gas" : "electricity";
+  const factor = source === "gas" ? gasKgPerKwh : gridKgPerKwh;
+  return {
+    id: "showers",
+    habitIds: [],
+    category: "home",
+    title: "Hot showers",
+    carbon,
+    water: 0,
+    energy,
+    waterKind: "none",
+    energyKind: "site",
+    factorIds: ["shower-hot-water", source === "gas" ? "gas-carbon" : "grid-carbon"],
+    steps: [
+      `EPA WaterSense figures: ${plainNumber(minutes, 0)} minutes × ${plainNumber(assumptions.showerGallonsPerMinute, 1)} gallons per minute × ${plainNumber(assumptions.showersPerDay, 2)} showers a day × ${assumptions.daysPerYear} days = ${plainNumber(gallons, 0)} gallons of hot water a year.`,
+      minutes < assumptions.typicalShowerMinutes
+        ? `That is ${plainNumber(assumptions.typicalShowerMinutes - minutes, 0)} minutes shorter than the typical ${plainNumber(assumptions.typicalShowerMinutes, 0)}-minute shower.`
+        : `The typical shower in this model is ${plainNumber(assumptions.typicalShowerMinutes, 0)} minutes. A shorter-shower change cuts two minutes.`,
+      `${plainNumber(gallons, 0)} gallons × ${plainNumber(assumptions.waterLbPerGallon, 2)} lb × ${plainNumber(assumptions.waterHeatRiseF, 0)}°F ÷ ${plainNumber(published.btuPerKwh, 0)} Btu/kWh = ${plainNumber(energy, 0)} kWh to heat the water.`,
+      `${plainNumber(energy, 0)} kWh of ${sourceLabel} × ${plainNumber(factor, 3)} kg CO2e per kWh = ${plainNumber(carbon, 0)} kg CO2e.`,
+      "Tap-water volume is not added to the water total. This is one person's showers, not a whole household.",
+    ],
+  };
+}
+
 function clothesLine(answers: Answers): ImpactLine {
-  const items = answers.clothesPerSeason * assumptions.seasonsPerYear;
-  const carbon = items * garmentKgCo2e;
-  const water = items * garmentLiters;
+  const perSeason = resolvedNumber(answers.clothesPerSeason, assumptions.typicalClothesPerSeason);
+  const items = perSeason * assumptions.seasonsPerYear;
+  const secondhand = resolvedShare(answers.secondhandShare);
+  const newItems = items * (1 - secondhand);
+  const carbon = newItems * garmentKgCo2e;
+  const water = newItems * garmentLiters;
   const energy = carbon / dieselKgPerKwh;
   return {
     id: "clothes",
@@ -296,19 +379,25 @@ function clothesLine(answers: Answers): ImpactLine {
     energy,
     waterKind: "virtual",
     energyKind: "derived",
-    factorIds: ["garment-carbon", "garment-mass", "garment-water", "garment-energy", "diesel-energy"],
+    factorIds: ["garment-carbon", "garment-mass", "garment-water", "garment-energy", "diesel-energy", "secondhand-clothes"],
     steps: [
-      `${plainNumber(answers.clothesPerSeason, 0)} new items a season × ${assumptions.seasonsPerYear} seasons = ${plainNumber(items, 0)} items a year.`,
+      answers.clothesPerSeason === null
+        ? `New clothes were left blank, so this uses the typical ${plainNumber(assumptions.typicalClothesPerSeason, 0)} items a season × ${assumptions.seasonsPerYear} seasons = ${plainNumber(items, 0)} items a year.`
+        : `${plainNumber(perSeason, 0)} new items a season × ${assumptions.seasonsPerYear} seasons = ${plainNumber(items, 0)} items a year.`,
       `Each item is assumed to weigh ${plainNumber(assumptions.garmentKg, 1)} kg, half cotton and half polyester fiber.`,
-      `${plainNumber(items, 0)} × ${plainNumber(garmentKgCo2e, 1)} kg CO2e of fiber = ${plainNumber(carbon, 0)} kg CO2e.`,
-      `${plainNumber(items, 0)} × ${plainNumber(garmentLiters, 0)} L of fiber water = ${plainNumber(water, 0)} L of virtual water.`,
+      secondhand > 0
+        ? `${plainNumber(secondhand * 100, 0)}% of those items are treated as secondhand, so ${plainNumber(newItems, 1)} new items still carry fiber.`
+        : "All of those items are counted as new fiber.",
+      `${plainNumber(newItems, 1)} × ${plainNumber(garmentKgCo2e, 1)} kg CO2e of fiber = ${plainNumber(carbon, 0)} kg CO2e.`,
+      `${plainNumber(newItems, 1)} × ${plainNumber(garmentLiters, 0)} L of fiber water = ${plainNumber(water, 0)} L of virtual water.`,
       `Energy is not published beside that fiber carbon. ${plainNumber(carbon, 0)} kg CO2e ÷ ${plainNumber(dieselKgPerKwh, 3)} kg CO2 per kWh of diesel ≈ ${plainNumber(energy, 0)} kWh. That translation is rough.`,
     ],
   };
 }
 
 function ordersLine(answers: Answers): ImpactLine {
-  const orders = answers.ordersPerMonth * assumptions.monthsPerYear;
+  const perMonth = resolvedNumber(answers.ordersPerMonth, assumptions.typicalOrdersPerMonth);
+  const orders = perMonth * assumptions.monthsPerYear;
   const carbon = orders * published.parcelKgCo2e;
   const energy = carbon / dieselKgPerKwh;
   return {
@@ -323,7 +412,9 @@ function ordersLine(answers: Answers): ImpactLine {
     energyKind: "derived",
     factorIds: ["parcel-carbon", "diesel-energy"],
     steps: [
-      `${plainNumber(answers.ordersPerMonth, 0)} orders a month × ${assumptions.monthsPerYear} months = ${plainNumber(orders, 0)} orders a year.`,
+      answers.ordersPerMonth === null
+        ? `Orders were left blank, so this uses the typical ${plainNumber(assumptions.typicalOrdersPerMonth, 0)} orders a month × ${assumptions.monthsPerYear} months = ${plainNumber(orders, 0)} orders a year.`
+        : `${plainNumber(perMonth, 0)} orders a month × ${assumptions.monthsPerYear} months = ${plainNumber(orders, 0)} orders a year.`,
       `${plainNumber(orders, 0)} × ${plainNumber(published.parcelKgCo2e, 3)} kg CO2e to deliver a parcel = ${plainNumber(carbon, 0)} kg CO2e.`,
       "The thing inside the box is not included. Packaging water is not included.",
       `Energy is translated from that carbon: ${plainNumber(carbon, 0)} kg ÷ ${plainNumber(dieselKgPerKwh, 3)} kg CO2 per kWh ≈ ${plainNumber(energy, 0)} kWh. Delivery is not pure diesel, so this is a rough reading.`,
@@ -332,27 +423,78 @@ function ordersLine(answers: Answers): ImpactLine {
 }
 
 function resolvedHeat(source: HeatSource): Exclude<HeatSource, "unknown"> {
-  return source === "unknown" ? "gas" : source;
+  return source === "unknown" || !source ? "gas" : source;
 }
 
-function scaledHeat(load: number, habit: HeatingHabit): number {
-  if (habit === "typical") return load;
-  const sign = habit === "warmer" ? 1 : -1;
-  const percent = assumptions.thermostatDegrees * assumptions.percentPerDegree;
-  return (load * (100 + sign * percent)) / 100;
+function resolvedInsulation(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 1;
+  return Math.min(1, Math.max(0, value));
 }
 
-function thermostatStep(load: number, habit: HeatingHabit, heatNeed: number): string {
-  if (habit === "typical") {
-    return "Typical winter setpoint: no change to that load.";
+function resolvedShare(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function scaledHeat(load: number, tempF: number | null): number {
+  const winterF = resolvedNumber(tempF, assumptions.typicalWinterF);
+  const delta = winterF - assumptions.typicalWinterF;
+  return (load * (100 + delta * assumptions.percentPerDegree)) / 100;
+}
+
+function thermostatStep(load: number, tempF: number | null, heatNeed: number): string {
+  const winterF = resolvedNumber(tempF, assumptions.typicalWinterF);
+  const delta = winterF - assumptions.typicalWinterF;
+  if (tempF === null) {
+    return `Winter temperature was left blank, so this uses the typical ${plainNumber(assumptions.typicalWinterF, 0)}°F setpoint: no change to that load.`;
   }
-  const direction = habit === "warmer" ? "higher" : "lower";
-  const signed = habit === "warmer" ? "+" : "−";
-  return `${habit === "warmer" ? "Warmer" : "Cooler"} by about ${assumptions.thermostatDegrees}°F: ${plainNumber(load, 0)} kWh × (1 ${signed} ${assumptions.thermostatDegrees} × ${assumptions.percentPerDegree}%) = ${plainNumber(heatNeed, 0)} kWh of heat (${direction}).`;
+  if (Math.abs(delta) < 0.05) {
+    return `Typical winter setpoint (${plainNumber(assumptions.typicalWinterF, 0)}°F): no change to that load.`;
+  }
+  const direction = delta > 0 ? "higher" : "lower";
+  const signed = delta > 0 ? "+" : "−";
+  return `${plainNumber(winterF, 0)}°F is about ${plainNumber(Math.abs(delta), 1)}°F ${delta > 0 ? "above" : "below"} ${plainNumber(assumptions.typicalWinterF, 0)}°F: ${plainNumber(load, 0)} kWh × (1 ${signed} ${plainNumber(Math.abs(delta), 1)} × ${assumptions.percentPerDegree}%) = ${plainNumber(heatNeed, 0)} kWh of heat (${direction}).`;
 }
 
-function homeLabel(size: HomeSize): string {
-  if (size === "apartment") return "Apartment";
-  if (size === "small") return "Small house";
-  return "Larger house";
+function homeAssumptionStep(text: string, size: HomeSize, load: number): string {
+  const assumed = homeLabel(size);
+  const trimmed = text.trim();
+  const mappedCustom =
+    trimmed !== "" &&
+    trimmed.toLowerCase() !== "other" &&
+    trimmed.toLowerCase() !== assumed.toLowerCase();
+  if (mappedCustom) {
+    return `"${trimmed}" is treated as a ${assumed.toLowerCase()}, the closest size this model has a heating load for: ${plainNumber(load, 0)} kWh a year.`;
+  }
+  return `${assumed} assumed heating need: ${plainNumber(load, 0)} kWh a year.`;
 }
+
+export function categorizeHome(text: string): HomeSize {
+  return classifyHome(text);
+}
+
+const dietFactors: Record<
+  DietCategory,
+  { kgCo2e: number; liters: number; mj: number | null }
+> = {
+  plant: {
+    kgCo2e: published.plantKgCo2ePerKg,
+    liters: published.plantLitersPerKg,
+    mj: null,
+  },
+  chickenPork: {
+    kgCo2e: chickenPorkKgCo2ePerKg,
+    liters: chickenPorkLitersPerKg,
+    mj: chickenPorkMjPerKg,
+  },
+  fish: {
+    kgCo2e: published.fishKgCo2ePerKg,
+    liters: published.fishLitersPerKg,
+    mj: null,
+  },
+  beef: {
+    kgCo2e: published.beefKgCo2ePerKg,
+    liters: published.beefLitersPerKg,
+    mj: published.beefMjPerKg,
+  },
+};

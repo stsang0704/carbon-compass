@@ -10,33 +10,42 @@ export type EnergyKind = "site" | "embodied" | "fuel" | "derived" | "none";
 
 export type Waste = "rarely" | "sometimes" | "often";
 
+export type DietCategory = "plant" | "chickenPork" | "fish" | "beef";
+
+export type DietShare = Record<DietCategory, number>;
+
+export type OptionalNumber = number | null;
+
 export type HomeSize = "apartment" | "small" | "larger";
 
 export type HeatSource = "gas" | "resistance" | "heatPump" | "unknown";
 
-export type HeatingHabit = "warmer" | "typical" | "cooler";
-
 export type HabitId =
-  | "meatMealsPerWeek"
+  | "dietShare"
   | "foodWaste"
   | "milesPerWeek"
   | "flightsPerYear"
-  | "homeSize"
-  | "heatSource"
-  | "heatingHabit"
+  | "homeType"
+  | "winterTempF"
   | "clothesPerSeason"
   | "ordersPerMonth";
 
 export type Answers = {
-  meatMealsPerWeek: number;
+  dietShare: DietShare;
   foodWaste: Waste;
-  milesPerWeek: number;
-  flightsPerYear: number;
-  homeSize: HomeSize;
+  milesPerWeek: OptionalNumber;
+  flightsPerYear: OptionalNumber;
+  homeType: string;
   heatSource: HeatSource;
-  heatingHabit: HeatingHabit;
-  clothesPerSeason: number;
-  ordersPerMonth: number;
+  winterTempF: OptionalNumber;
+  clothesPerSeason: OptionalNumber;
+  ordersPerMonth: OptionalNumber;
+  /** Null uses the typical EPA shower length. The questionnaire does not ask this. */
+  showerMinutes: OptionalNumber;
+  /** 1 is the current envelope. A recommendation may lower this. */
+  insulationFactor: number;
+  /** Share of new items treated as secondhand (zero fiber). */
+  secondhandShare: number;
 };
 
 export type Impacts = {
@@ -88,13 +97,12 @@ export const categories: { id: Category; label: string; bearing: string }[] = [
 ];
 
 export const habitOrder: HabitId[] = [
-  "meatMealsPerWeek",
+  "dietShare",
   "foodWaste",
   "milesPerWeek",
   "flightsPerYear",
-  "homeSize",
-  "heatSource",
-  "heatingHabit",
+  "homeType",
+  "winterTempF",
   "clothesPerSeason",
   "ordersPerMonth",
 ];

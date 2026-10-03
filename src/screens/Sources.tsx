@@ -21,6 +21,8 @@ export function Sources({ baseline, scenario, focusHabitId, onClose }: Props) {
         intro={`${AVERAGES_NOTE} Each row is one piece of the year you are looking at.`}
         footprint={next}
         baseline={same(baseline, scenario) ? undefined : current}
+        comparisonKg={current.totals.carbon}
+        savedKg={Math.max(0, current.totals.carbon - next.totals.carbon)}
         onClose={onClose}
       />
     );

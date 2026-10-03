@@ -1,5 +1,16 @@
-import { feel, formatAnswer, habitMeta, type ScaleMark } from "../data/habits";
-import type { Answers, HabitId } from "../model/types";
+import { useEffect, useState } from "react";
+import { DietControl } from "./DietControl";
+import {
+  celsiusToFahrenheit,
+  fahrenheitToCelsius,
+  feel,
+  homePresetOptions,
+  numericPlaceholder,
+} from "../data/habits";
+import { habitMeta } from "../data/habits";
+import { emptyDietShare, isDietShare } from "../data/diet";
+import { HOME_OTHER_VALUE, isHomeOtherSelection } from "../data/home";
+import type { Answers, DietShare, HabitId, OptionalNumber } from "../model/types";
 
 type Props = {
   id: HabitId;
@@ -15,18 +26,29 @@ export function HabitControl({ id, value, baseline, onChange, showFeel = true }:
 
   return (
     <div className="stack control-card">
-      {control.type === "number" ? (
-        <NumberControl
-          value={Number(value)}
-          baseline={Number(baseline)}
-          min={control.min}
-          max={Math.max(control.max, Number(baseline), Number(value))}
-          step={control.step}
-          unit={formatAnswer(id, value)}
-          zeroLabel={control.zeroLabel}
-          marks={control.marks}
+      {control.type === "diet" ? (
+        <DietControl
+          value={isDietShare(value) ? value : emptyDietShare}
+          onChange={(next) => onChange(next as Answers[HabitId])}
+        />
+      ) : control.type === "entry" ? (
+        <EntryControl
+          key={id}
+          value={asOptionalNumber(value)}
+          suffix={control.suffix}
           onChange={(next) => onChange(next)}
         />
+      ) : control.type === "text" ? (
+        <TextControl
+          key={id}
+          value={String(value ?? "")}
+          placeholder={control.placeholder}
+          onChange={(next) => onChange(next)}
+        />
+      ) : control.type === "temperature" ? (
+        <TemperatureControl key={id} valueF={asOptionalNumber(value)} onChange={(next) => onChange(next)} />
+      ) : control.type === "home" ? (
+        <HomeTypeControl key={id} value={String(value ?? "")} onChange={(next) => onChange(next)} />
       ) : (
         <div className="stack">
           {control.options.map((option) => (
@@ -38,7 +60,7 @@ export function HabitControl({ id, value, baseline, onChange, showFeel = true }:
               onClick={() => onChange(option.value as Answers[HabitId])}
             >
               <strong>{option.label}</strong>
-              <p className="quiet">{option.hint}</p>
+              {option.hint ? <p className="quiet">{option.hint}</p> : null}
             </button>
           ))}
         </div>
@@ -48,96 +70,231 @@ export function HabitControl({ id, value, baseline, onChange, showFeel = true }:
   );
 }
 
-function NumberControl({
+function HomeTypeControl({
   value,
-  baseline,
-  min,
-  max,
-  step,
-  unit,
-  zeroLabel,
-  marks,
   onChange,
 }: {
-  value: number;
-  baseline: number;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-  zeroLabel?: string;
-  marks?: ScaleMark[];
-  onChange: (value: number) => void;
+  value: string;
+  onChange: (value: string) => void;
 }) {
+  const otherOn = isHomeOtherSelection(value);
+  const [custom, setCustom] = useState(() => (otherOn && value !== HOME_OTHER_VALUE ? value : ""));
+
+  useEffect(() => {
+    if (isHomeOtherSelection(value) && value !== HOME_OTHER_VALUE) setCustom(value);
+  }, [value]);
+
+  function selectPreset(next: string) {
+    onChange(next);
+  }
+
+  function selectOther() {
+    onChange(custom.trim() === "" ? HOME_OTHER_VALUE : custom);
+  }
+
   return (
     <div className="stack">
-      <div className="stepper">
+      {homePresetOptions.map((option) => (
         <button
-          className="round"
-          type="button"
-          aria-label="Decrease"
-          disabled={value <= min}
-          onClick={() => onChange(Math.max(min, value - step))}
-        >
-          −
-        </button>
-        <div>
-          <div className="stepper-value">{value}</div>
-          <span className="stepper-unit">{unit}</span>
-        </div>
-        <button
-          className="round"
-          type="button"
-          aria-label="Increase"
-          disabled={value >= max}
-          onClick={() => onChange(Math.min(max, value + step))}
-        >
-          +
-        </button>
-      </div>
-      <label className="slider-block">
-        <span className="slider-caption">Drag to try a different amount</span>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          aria-valuetext={unit}
-          onChange={(event) => onChange(Number(event.target.value))}
-        />
-        {marks && marks.length > 0 ? (
-          <span className="scale-marks">
-            {marks.map((mark, index) => (
-              <span
-                key={mark.value}
-                className="scale-mark"
-                style={{ left: `${((mark.value - min) / (max - min)) * 100}%` }}
-                data-edge={index === 0 ? "start" : index === marks.length - 1 ? "end" : "mid"}
-              >
-                <strong>{mark.value}</strong>
-                <span>{mark.label}</span>
-              </span>
-            ))}
-          </span>
-        ) : (
-          <span className="slider-ends">
-            <span>{min}</span>
-            <span>Now {baseline}</span>
-            <span>{max}</span>
-          </span>
-        )}
-      </label>
-      {zeroLabel ? (
-        <button
+          key={option.value}
           className="choice"
           type="button"
-          aria-pressed={value === 0}
-          onClick={() => onChange(0)}
+          aria-pressed={option.value === value}
+          onClick={() => selectPreset(option.value)}
         >
-          <strong>{zeroLabel}</strong>
+          <strong>{option.label}</strong>
+          {option.hint ? <p className="quiet">{option.hint}</p> : null}
         </button>
-      ) : null}
+      ))}
+      <div className={`choice${otherOn ? " is-selected" : ""}`}>
+        <button
+          className="choice-inner"
+          type="button"
+          aria-pressed={otherOn}
+          onClick={selectOther}
+        >
+          <strong>Other</strong>
+          <p className="quiet">Tell us what type of home you live in.</p>
+        </button>
+        {otherOn ? (
+          <input
+            className="other-home-input"
+            type="text"
+            value={custom}
+            placeholder={numericPlaceholder}
+            autoCapitalize="sentences"
+            aria-label="Home type"
+            onChange={(event) => {
+              const next = event.target.value;
+              setCustom(next);
+              onChange(next.trim() === "" ? HOME_OTHER_VALUE : next);
+            }}
+          />
+        ) : null}
+      </div>
     </div>
   );
+}
+
+function EntryControl({
+  value,
+  suffix,
+  onChange,
+}: {
+  value: OptionalNumber;
+  suffix: string;
+  onChange: (value: OptionalNumber) => void;
+}) {
+  const [draft, setDraft] = useState(value === null ? "" : String(value));
+
+  useEffect(() => {
+    setDraft(value === null ? "" : String(value));
+  }, [value]);
+
+  function commit(raw: string) {
+    const next = parseNonNegative(raw);
+    onChange(next);
+    setDraft(next === null ? "" : String(next));
+  }
+
+  return (
+    <label className="stack entry-block">
+      <input
+        className="entry-field value-input"
+        type="text"
+        inputMode="decimal"
+        value={draft}
+        placeholder={numericPlaceholder}
+        aria-label={suffix}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === "") {
+            setDraft("");
+            onChange(null);
+            return;
+          }
+          if (!/^\d*\.?\d*$/.test(next)) return;
+          setDraft(next);
+          const parsed = parseNonNegative(next);
+          if (parsed !== null) onChange(parsed);
+        }}
+        onBlur={() => commit(draft)}
+      />
+      <span className="entry-suffix">{suffix}</span>
+    </label>
+  );
+}
+
+function TextControl({
+  value,
+  placeholder,
+  onChange,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="stack entry-block">
+      <input
+        className="text-field value-input"
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        autoCapitalize="sentences"
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function TemperatureControl({
+  valueF,
+  onChange,
+}: {
+  valueF: OptionalNumber;
+  onChange: (valueF: OptionalNumber) => void;
+}) {
+  const [unit, setUnit] = useState<"F" | "C">("F");
+  const [draft, setDraft] = useState(() => shownTemp(valueF, "F"));
+
+  useEffect(() => {
+    setDraft(shownTemp(valueF, unit));
+  }, [valueF, unit]);
+
+  function commit(raw: string, nextUnit: "F" | "C") {
+    const stored = toStored(raw, nextUnit);
+    onChange(stored);
+    setDraft(shownTemp(stored, nextUnit));
+  }
+
+  return (
+    <div className="stack">
+      <div className="preset-row unit-row">
+        <button
+          className="preset"
+          type="button"
+          aria-pressed={unit === "F"}
+          onClick={() => setUnit("F")}
+        >
+          °F
+        </button>
+        <button
+          className="preset"
+          type="button"
+          aria-pressed={unit === "C"}
+          onClick={() => setUnit("C")}
+        >
+          °C
+        </button>
+      </div>
+      <label className="stack entry-block">
+        <input
+          className="entry-field value-input"
+          type="text"
+          inputMode="decimal"
+          value={draft}
+          placeholder={numericPlaceholder}
+          aria-label={`Winter temperature in degrees ${unit === "F" ? "Fahrenheit" : "Celsius"}`}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (next === "") {
+              setDraft("");
+              onChange(null);
+              return;
+            }
+            if (!/^\d*\.?\d*$/.test(next)) return;
+            setDraft(next);
+            const stored = toStored(next, unit);
+            if (stored !== null) onChange(stored);
+          }}
+          onBlur={() => commit(draft, unit)}
+        />
+        <span className="entry-suffix">{unit === "F" ? "degrees Fahrenheit" : "degrees Celsius"}</span>
+      </label>
+    </div>
+  );
+}
+
+function asOptionalNumber(value: Answers[HabitId] | DietShare): OptionalNumber {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return null;
+}
+
+function parseNonNegative(raw: string): OptionalNumber {
+  if (raw.trim() === "") return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+function toStored(raw: string, nextUnit: "F" | "C"): OptionalNumber {
+  const parsed = parseNonNegative(raw);
+  if (parsed === null) return null;
+  return nextUnit === "C" ? celsiusToFahrenheit(parsed) : parsed;
+}
+
+function shownTemp(valueF: OptionalNumber, unit: "F" | "C"): string {
+  if (valueF === null) return "";
+  return String(unit === "F" ? Math.round(valueF) : fahrenheitToCelsius(valueF));
 }
