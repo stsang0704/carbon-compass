@@ -99,7 +99,7 @@ function DietDonut({ share }: { share: DietShare }) {
         cy={center}
         r={radius}
         fill="none"
-        stroke="#efe8dc"
+        stroke="#ffffff"
         strokeWidth={stroke}
       />
       {slices

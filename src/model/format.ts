@@ -118,9 +118,9 @@ export function treeEquivalenceLine(savedKg: number): string {
   if (trees < 1) return "";
   const count = Math.round(trees);
   if (count === 1) {
-    return "Your changes could avoid as much CO₂ as approximately 1 tree absorbs in a year.";
+    return "If you adopted these selected changes, the estimated CO₂e savings would be about as much as 1 tree absorbs in a year.";
   }
-  return `Your changes could avoid as much CO₂ as approximately ${count.toLocaleString("en-US")} trees absorb in a year.`;
+  return `If you adopted these selected changes, the estimated CO₂e savings would be about as much as ${count.toLocaleString("en-US")} trees absorb in a year.`;
 }
 
 export function canShowTrees(savedKg: number): boolean {
@@ -133,12 +133,12 @@ export function avoidedMilesHeading(savedKg: number): string {
 }
 
 export function avoidedMilesLine(): string {
-  return "Your changes could avoid roughly the same amount of CO₂ as driving a typical gasoline car this distance.";
+  return "If you adopted these selected changes, the estimated CO₂e savings would be about the same as driving a typical gasoline car this distance.";
 }
 
 export function formatCarbonSaved(savedKg: number): string {
   if (!Number.isFinite(savedKg) || savedKg <= 0) return "";
-  return `${Math.round(savedKg).toLocaleString("en-US")} kg CO₂e saved`;
+  return `${Math.round(savedKg).toLocaleString("en-US")} kg CO₂e in potential annual savings.`;
 }
 
 export type SavedEquivalence =

@@ -2,6 +2,15 @@ import { dietFromMeatDiet, isDietShare } from "../data/diet";
 import { assumptions } from "../data/factors";
 import { sameAnswer, withOverrides } from "../data/habits";
 import { isRecId, type RecId } from "../data/recommendations";
+import { calculate } from "../model/calculate";
+import {
+  footprintKg,
+  upsertCheckIn,
+  type CheckInSnapshot,
+  type ReflectionChoice,
+} from "../model/checkin";
+import type { MonthRecord } from "../model/progress";
+import { upsertMonth } from "../model/progress";
 import type { Answers, HabitId, HeatSource } from "../model/types";
 import { habitOrder } from "../model/types";
 
@@ -9,6 +18,9 @@ export type Profile = {
   baseline: Answers;
   overrides: Partial<Answers>;
   selectedRecIds: RecId[];
+  history: MonthRecord[];
+  checkIns: CheckInSnapshot[];
+  baselineMonth: string | null;
 };
 
 const KEY = "carbon-compass-profile";
@@ -35,8 +47,27 @@ export function saveProfile(profile: Profile) {
   browserStorage()?.setItem(KEY, JSON.stringify(profile));
 }
 
+export function withMonthRecord(profile: Profile): Profile {
+  const scenarioKg = calculate(scenarioOf(profile)).totals.carbon;
+  const history = upsertMonth(profile.history, scenarioKg);
+  if (
+    history.length === (profile.history?.length ?? 0) &&
+    history.every((item, index) => {
+      const prev = profile.history?.[index];
+      return prev && prev.month === item.month && Math.abs(prev.scenarioKg - item.scenarioKg) < 0.05;
+    })
+  ) {
+    return profile;
+  }
+  return { ...profile, history };
+}
+
 export function clearProfile() {
   browserStorage()?.removeItem(KEY);
+}
+
+export function recordCheckIn(profile: Profile, snapshot: CheckInSnapshot): Profile {
+  return { ...profile, checkIns: upsertCheckIn(profile.checkIns, snapshot) };
 }
 
 export function scenarioOf(profile: Profile): Answers {
@@ -113,7 +144,14 @@ function migrateProfile(value: unknown): Profile | null {
   delete overrides.otherMeatMealsPerWeek;
   if (!isAnswers(baseline) || !isPartialAnswers(overrides)) return null;
   const selectedRecIds = readRecIds(value);
-  return { baseline, overrides: overrides as Partial<Answers>, selectedRecIds };
+  return {
+    baseline,
+    overrides: overrides as Partial<Answers>,
+    selectedRecIds,
+    history: readHistory(value),
+    checkIns: readCheckIns(value),
+    baselineMonth: readBaselineMonth(value),
+  };
 }
 
 function foldMeat(baseline: Record<string, unknown>, overrides: Record<string, unknown>) {
@@ -243,4 +281,74 @@ function readRecIds(value: unknown): RecId[] {
   const raw = (value as { selectedRecIds?: unknown }).selectedRecIds;
   if (!Array.isArray(raw)) return [];
   return raw.filter(isRecId);
+}
+
+const reflectionChoices = new Set<ReflectionChoice>(["not-yet", "trying", "habit"]);
+
+function readCheckIns(value: unknown): CheckInSnapshot[] {
+  if (!value || typeof value !== "object") return [];
+  const raw = (value as { checkIns?: unknown }).checkIns;
+  if (!Array.isArray(raw)) return [];
+  const byMonth = new Map<string, CheckInSnapshot>();
+  for (const item of raw) {
+    const snapshot = readSnapshot(item);
+    if (snapshot) byMonth.set(snapshot.month, snapshot);
+  }
+  return [...byMonth.values()].sort((left, right) => left.month.localeCompare(right.month));
+}
+
+function readSnapshot(value: unknown): CheckInSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as {
+    month?: unknown;
+    answers?: unknown;
+    carbonKg?: unknown;
+    selectedRecIds?: unknown;
+    reflections?: unknown;
+  };
+  if (typeof record.month !== "string" || !/^\d{4}-\d{2}$/.test(record.month)) return null;
+  if (!isAnswers(record.answers)) return null;
+  const selectedRecIds = Array.isArray(record.selectedRecIds) ? record.selectedRecIds.filter(isRecId) : [];
+  const reflections: Partial<Record<RecId, ReflectionChoice>> = {};
+  if (record.reflections && typeof record.reflections === "object") {
+    for (const id of selectedRecIds) {
+      const choice = (record.reflections as Record<string, unknown>)[id];
+      if (typeof choice === "string" && reflectionChoices.has(choice as ReflectionChoice)) {
+        reflections[id] = choice as ReflectionChoice;
+      }
+    }
+  }
+  const carbonKg =
+    typeof record.carbonKg === "number" && Number.isFinite(record.carbonKg) && record.carbonKg >= 0
+      ? record.carbonKg
+      : footprintKg(record.answers);
+  return { month: record.month, answers: record.answers, carbonKg, selectedRecIds, reflections };
+}
+
+function readBaselineMonth(value: unknown): string | null {
+  if (value && typeof value === "object") {
+    const explicit = (value as { baselineMonth?: unknown }).baselineMonth;
+    if (typeof explicit === "string" && /^\d{4}-\d{2}$/.test(explicit)) return explicit;
+  }
+  const earliest = readHistory(value)
+    .map((item) => item.month)
+    .sort()[0];
+  return earliest ?? null;
+}
+
+function readHistory(value: unknown): MonthRecord[] {
+  if (!value || typeof value !== "object") return [];
+  const raw = (value as { history?: unknown }).history;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as { month?: unknown; scenarioKg?: unknown };
+      if (typeof record.month !== "string" || !/^\d{4}-\d{2}$/.test(record.month)) return null;
+      if (typeof record.scenarioKg !== "number" || !Number.isFinite(record.scenarioKg) || record.scenarioKg < 0) {
+        return null;
+      }
+      return { month: record.month, scenarioKg: record.scenarioKg };
+    })
+    .filter((item): item is MonthRecord => item !== null);
 }

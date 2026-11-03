@@ -10,10 +10,14 @@ export function Baseline({
   initial,
   onDone,
   onBack,
+  backLabel = "Back to welcome",
+  doneLabel = "See your results",
 }: {
   initial?: Answers;
   onDone: (answers: Answers) => void;
   onBack: () => void;
+  backLabel?: string;
+  doneLabel?: string;
 }) {
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Answers>(initial ?? blankAnswers);
@@ -32,7 +36,7 @@ export function Baseline({
         if (step === 0) onBack();
         else setStep((current) => current - 1);
       }}
-      backLabel={step === 0 ? "Back to welcome" : "Previous question"}
+      backLabel={step === 0 ? backLabel : "Previous question"}
       hero={
         <>
           <p className="kicker">
@@ -61,7 +65,7 @@ export function Baseline({
           else setStep((current) => current + 1);
         }}
       >
-        {last ? "See your compass" : "Next"}
+        {last ? doneLabel : "Next"}
       </button>
     </PhoneShell>
   );

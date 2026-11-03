@@ -3,10 +3,13 @@ import {
   assumptions,
   chickenPorkKgCo2ePerKg,
   published,
+  usPerCapitaKgCo2e,
 } from "../data/factors";
 import { typicalDietShare } from "../data/diet";
 import { applyDepth, starterAnswers, withOverrides } from "../data/habits";
 import { bestSmallMove, calculate, categorizeHome, replaceAnswer } from "./calculate";
+import { lifestyleCompare, shareOfTypicalYear, typicalUsLifestyleKg } from "./compare";
+import { monthCompare, monthKey, previousRecord, upsertMonth } from "./progress";
 import {
   carsFromCarbon,
   drivingMilesFromCarbon,
@@ -250,10 +253,10 @@ describe("calculate", () => {
     expect(treesFromCarbonSaved(120)).toBeCloseTo(2, 6);
     expect(treesFromCarbonSaved(0)).toBe(0);
     expect(treeEquivalenceLine(60)).toBe(
-      "Your changes could avoid as much CO₂ as approximately 1 tree absorbs in a year.",
+      "If you adopted these selected changes, the estimated CO₂e savings would be about as much as 1 tree absorbs in a year.",
     );
     expect(treeEquivalenceLine(180)).toBe(
-      "Your changes could avoid as much CO₂ as approximately 3 trees absorb in a year.",
+      "If you adopted these selected changes, the estimated CO₂e savings would be about as much as 3 trees absorb in a year.",
     );
   });
 
@@ -262,7 +265,7 @@ describe("calculate", () => {
     expect(small.kind).toBe("miles");
     expect(small.heading).toBe("≈ 76 miles");
     expect(small.unit).toBe("of driving avoided");
-    expect(formatCarbonSaved(30)).toBe("30 kg CO₂e saved");
+    expect(formatCarbonSaved(30)).toBe("30 kg CO₂e in potential annual savings.");
     expect(JSON.stringify(small)).not.toMatch(/less than 1|0 trees|0\.\d trees/i);
 
     const threshold = savedEquivalence(60);
@@ -273,5 +276,32 @@ describe("calculate", () => {
     expect(larger.kind).toBe("trees");
     expect(larger.heading).toBe("≈ 3 trees");
     expect(savedEquivalence(0).kind).toBe("none");
+  });
+});
+
+describe("lifestyle comparison and monthly progress", () => {
+  it("compares a year to the typical U.S. lifestyle in this model", () => {
+    const typical = typicalUsLifestyleKg();
+    const same = lifestyleCompare(typical);
+    expect(same.direction).toBe("near");
+    const higher = lifestyleCompare(typical * 1.5);
+    expect(higher.direction).toBe("above");
+    expect(higher.percent).toBe(50);
+    expect(usPerCapitaKgCo2e / 1000).toBeCloseTo(19.0, 1);
+    expect(shareOfTypicalYear(typical).percent).toBe(100);
+    expect(shareOfTypicalYear(typical * 0.123).label).toMatch(/comparable average person/i);
+  });
+
+  it("records a month and describes the change without inventing a prior month", () => {
+    const history = upsertMonth([], 8000, new Date("2026-10-17"));
+    expect(history).toHaveLength(1);
+    expect(previousRecord(history, "2026-10")).toBeNull();
+    const first = monthCompare(8000, null);
+    expect(first.kind).toBe("first");
+    const later = upsertMonth(history, 7600, new Date("2026-11-02"));
+    const prev = previousRecord(later, "2026-11");
+    expect(prev?.month).toBe("2026-10");
+    expect(monthCompare(7600, prev).kind).toBe("less");
+    expect(monthKey(new Date("2026-10-17"))).toBe("2026-10");
   });
 });

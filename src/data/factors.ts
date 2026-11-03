@@ -42,7 +42,13 @@ export const published = {
   dieselKgCo2PerGallon: 10.21,
   dieselBtuPerGallon: 137381,
   parcelKgCo2e: 1.075,
+  usInventoryMtCo2e2022: 6343.2,
+  usPopulation2022: 333_287_557,
 } as const;
+
+/** Gross EPA 2022 inventory divided by Census 2022 population. Wider than this app's lifestyle year. */
+export const usPerCapitaKgCo2e =
+  (published.usInventoryMtCo2e2022 * 1_000_000_000) / published.usPopulation2022;
 
 export const assumptions = {
   meatPortionKg: 0.1,
@@ -182,7 +188,6 @@ export const factors: Record<string, Factor> = {
       "Farm, land-use change, processing, transport, and packaging in the study's global mean for beef from beef herds.",
     excludes:
       "Lamb is lower, about 40 kg CO2e per kg. Meals that are mostly lamb are overstated here. Sides, drinks, and cooking at home are not included.",
-    confidence: "medium",
   },
   "poultry-carbon": {
     id: "poultry-carbon",
@@ -195,7 +200,6 @@ export const factors: Record<string, Factor> = {
     includes: "The same supply-chain boundary as the beef figure, for poultry meat.",
     excludes:
       "Pork is a little higher, about 12 kg CO2e per kg. Sides, drinks, and cooking at home are not included.",
-    confidence: "medium",
   },
   "beef-water": {
     id: "beef-water",
@@ -208,7 +212,6 @@ export const factors: Record<string, Factor> = {
     includes:
       "Green, blue, and grey water for beef cattle. Most of it is rain on feed crops, not water from a tap.",
     excludes: "It is not the water you pour while cooking.",
-    confidence: "medium",
   },
   "poultry-water": {
     id: "poultry-water",
@@ -220,7 +223,6 @@ export const factors: Record<string, Factor> = {
     region: "Global average",
     includes: "Green, blue, and grey water for chicken meat.",
     excludes: "Cooking water is not included. Pork is higher than chicken.",
-    confidence: "medium",
   },
   "beef-energy": {
     id: "beef-energy",
@@ -233,7 +235,6 @@ export const factors: Record<string, Factor> = {
     includes: "On-farm energy reported for beef in that review, converted here from megajoules to kilowatt-hours.",
     excludes:
       "It is not the full supply chain, and it is not electricity at your stove. The midpoint is a summary of a range.",
-    confidence: "low",
   },
   "poultry-energy": {
     id: "poultry-energy",
@@ -245,7 +246,6 @@ export const factors: Record<string, Factor> = {
     region: "Range across published studies",
     includes: "On-farm energy reported for chicken, converted from megajoules to kilowatt-hours.",
     excludes: "Not the full supply chain, and not your kitchen.",
-    confidence: "low",
   },
   "pork-carbon": {
     id: "pork-carbon",
@@ -257,7 +257,6 @@ export const factors: Record<string, Factor> = {
     region: "Global average",
     includes: "The same supply-chain boundary as the beef figure, for pig meat.",
     excludes: "Sides, drinks, and cooking at home are not included.",
-    confidence: "medium",
   },
   "pork-water": {
     id: "pork-water",
@@ -269,7 +268,6 @@ export const factors: Record<string, Factor> = {
     region: "Global average",
     includes: "Green, blue, and grey water for pig meat.",
     excludes: "Cooking water is not included.",
-    confidence: "medium",
   },
   "pork-energy": {
     id: "pork-energy",
@@ -281,7 +279,6 @@ export const factors: Record<string, Factor> = {
     region: "Range across published studies",
     includes: "On-farm energy reported for pork in that review, converted here from megajoules to kilowatt-hours.",
     excludes: "Not the full supply chain, and not your kitchen.",
-    confidence: "low",
   },
   "plant-carbon": {
     id: "plant-carbon",
@@ -295,7 +292,6 @@ export const factors: Record<string, Factor> = {
       "The study's global mean for other vegetables. This stands in for vegetables and plant-based foods on the plate.",
     excludes:
       "Tofu is higher, about 3.16 kg CO2e per kg. A tofu-heavy week is understated. Fruit, grains, dairy, and cooking at home are not modeled separately.",
-    confidence: "medium",
   },
   "plant-water": {
     id: "plant-water",
@@ -307,7 +303,6 @@ export const factors: Record<string, Factor> = {
     region: "Global average",
     includes: "Green, blue, and grey water for vegetables as a crop group.",
     excludes: "It is not the water you pour while cooking.",
-    confidence: "medium",
   },
   "fish-carbon": {
     id: "fish-carbon",
@@ -320,7 +315,6 @@ export const factors: Record<string, Factor> = {
     includes: "The study's global mean for farmed fish, with the same supply-chain boundary as the meat figures.",
     excludes:
       "Wild-caught fish can be lower. Farmed prawns are higher, about 27 kg CO2e per kg. A prawn-heavy week is understated.",
-    confidence: "medium",
   },
   "fish-water": {
     id: "fish-water",
@@ -332,7 +326,6 @@ export const factors: Record<string, Factor> = {
     region: "Global average for fed aquaculture",
     includes: "The water footprint of feed crops for farmed fish, as reported for marine animal products.",
     excludes: "Wild-caught fish are not in this number. Cooking water is not included.",
-    confidence: "low",
   },
   "diet-mix": {
     id: "diet-mix",
@@ -346,7 +339,6 @@ export const factors: Record<string, Factor> = {
       "The four percentages always stand in for 100% of the modeled diet. Each share is 21 meals a week × 100 g × 52 weeks × that percentage, then multiplied by that food's published factor. Vegetables use other vegetables (0.53 kg CO2e/kg). Chicken/pork is the average of poultry (9.87) and pig meat (12.31). Fish uses farmed fish (13.63). Beef uses beef from beef herds (99.48).",
     excludes:
       "Drinks, dairy as its own group, cooking at home, and restaurant meals as a separate system are not included. The 21 meals and 100 g portion are an assumption so a week can use per-kilogram factors.",
-    confidence: "medium",
   },
   "mixed-meat": {
     id: "mixed-meat",
@@ -360,7 +352,6 @@ export const factors: Record<string, Factor> = {
       "Each meal is 100 g of meat. The mix stands in for a meal that contains meat without saying which kind. Poultry is about half, pork about 30%, and beef or lamb about 20%.",
     excludes:
       "A steak is higher than this mix. A chicken meal is lower. Sides, drinks, and cooking at home are not included.",
-    confidence: "medium",
   },
   "portion": {
     id: "portion",
@@ -372,7 +363,6 @@ export const factors: Record<string, Factor> = {
     region: "Assumption",
     includes: "A fixed portion so weekly meals become kilograms, then split by the diet percentages.",
     excludes: "A large steak is more than this. A salad plate can be more volume and less mass.",
-    confidence: "low",
   },
   "food-waste": {
     id: "food-waste",
@@ -386,7 +376,6 @@ export const factors: Record<string, Factor> = {
       "USDA discusses roughly 30–40% of the US food supply lost or wasted. The three answers are a household scale inspired by that range.",
     excludes:
       "Only the diet modeled above is scaled. The percentages are not a measurement of your kitchen.",
-    confidence: "low",
   },
   "vehicle-carbon": {
     id: "vehicle-carbon",
@@ -399,7 +388,6 @@ export const factors: Record<string, Factor> = {
     includes:
       "Fuel burned by an average gasoline car and light truck, at 22.8 miles per gallon, including methane and nitrous oxide.",
     excludes: "Building the car, the road, and most of the work of refining the fuel.",
-    confidence: "high",
   },
   "driving-equivalent": {
     id: "driving-equivalent",
@@ -413,7 +401,6 @@ export const factors: Record<string, Factor> = {
       "The same 0.393 kg CO2e per mile used for driving in this app, so a carbon reduction can be pictured as an equivalent distance not driven in a typical gasoline passenger vehicle. Used when the saving is smaller than one urban tree.",
     excludes:
       "This is an emissions equivalence, not a claim that you skipped that drive. Building the car, the road, and electric vehicles are not in this translation.",
-    confidence: "high",
   },
   "vehicle-year": {
     id: "vehicle-year",
@@ -427,7 +414,6 @@ export const factors: Record<string, Factor> = {
       "10,917 miles a year at 22.8 miles per gallon, with methane and nitrous oxide included so the total is CO2e. Used only to picture a year of carbon as a number of cars.",
     excludes:
       "Electric vehicles, building the car, and the road. This is a comparison for the year you entered, not extra cars added to the model.",
-    confidence: "high",
   },
   "gasoline-equivalent": {
     id: "gasoline-equivalent",
@@ -441,7 +427,6 @@ export const factors: Record<string, Factor> = {
       "Carbon dioxide from burning one gallon of motor gasoline. Your year of CO2e is divided by this factor so it can be pictured as gallons burned.",
     excludes:
       "This is an emissions equivalence, not a claim that you burned that gasoline. Methane, nitrous oxide, making the fuel, and electric vehicles are not in this gallon factor.",
-    confidence: "high",
   },
   "urban-tree": {
     id: "urban-tree",
@@ -455,7 +440,6 @@ export const factors: Record<string, Factor> = {
       "A probability-weighted average for a medium-growth coniferous or deciduous tree planted in an urban setting, expressed as an annual rate over ten years of growth.",
     excludes:
       "A wild forest, a specific species, or a carbon offset you can buy. This is a comparison so a reduction can be pictured as trees, not extra trees planted in the model.",
-    confidence: "medium",
   },
   "vehicle-energy": {
     id: "vehicle-energy",
@@ -467,7 +451,6 @@ export const factors: Record<string, Factor> = {
     region: "United States average",
     includes: "Chemical energy in the gasoline burned each mile.",
     excludes: "This is not electricity, and it is not the energy used to manufacture the car.",
-    confidence: "high",
   },
   "flight-carbon": {
     id: "flight-carbon",
@@ -481,7 +464,6 @@ export const factors: Record<string, Factor> = {
       "Aircraft fuel greenhouse gases per passenger-mile. Methane and nitrous oxide use IPCC AR5 factors (28 and 265) so they can sit in the CO2e total.",
     excludes:
       "Extra warming from contrails and high-altitude effects. Those can be large and are not in this EPA table.",
-    confidence: "high",
   },
   "flight-distance": {
     id: "flight-distance",
@@ -493,7 +475,6 @@ export const factors: Record<string, Factor> = {
     region: "Assumption",
     includes: "One distance so a count of trips can use the per-mile factor. It falls in the EPA medium-haul band.",
     excludes: "A short hop is less. A coast-to-coast or overseas trip is more, and overseas trips are long haul.",
-    confidence: "medium",
   },
   "flight-energy": {
     id: "flight-energy",
@@ -505,7 +486,6 @@ export const factors: Record<string, Factor> = {
     region: "United States factors",
     includes: "Gallons implied by the CO2 per passenger-mile, turned into kilowatt-hours of fuel.",
     excludes: "Contrails, and the energy used to build the plane.",
-    confidence: "medium",
   },
   "grid-carbon": {
     id: "grid-carbon",
@@ -518,7 +498,6 @@ export const factors: Record<string, Factor> = {
     includes: "Carbon dioxide, methane, and nitrous oxide from electricity generated for the US grid, as CO2e.",
     excludes:
       "Your regional grid may be cleaner or dirtier. Rhode Island is not the US average. Making the power plant itself is outside eGRID's output rate.",
-    confidence: "high",
   },
   "gas-carbon": {
     id: "gas-carbon",
@@ -531,7 +510,6 @@ export const factors: Record<string, Factor> = {
     includes:
       "Carbon dioxide from burning natural gas, with methane and nitrous oxide converted using IPCC AR5 factors (28 and 265).",
     excludes: "Leaks of unburned gas on the way to the house, which can matter and are not in this combustion factor.",
-    confidence: "high",
   },
   "heating-load": {
     id: "heating-load",
@@ -543,7 +521,6 @@ export const factors: Record<string, Factor> = {
     region: "Assumption for a US-style winter",
     includes: "A round annual heating need for three sizes, treated as energy that must be met.",
     excludes: "Your bill, climate, and furnace efficiency. These are not meter readings. A later insulation step can reduce this load.",
-    confidence: "low",
   },
   "thermostat": {
     id: "thermostat",
@@ -556,7 +533,6 @@ export const factors: Record<string, Factor> = {
     includes:
       "Warmer means about 3°F above a typical winter setpoint. Cooler means about 3°F below. Each degree changes heating energy by 3%.",
     excludes: "Setbacks only at night, heat pumps in mild weather, and homes that barely heat. The percentage is a rule of thumb, not a simulation.",
-    confidence: "low",
   },
   "unknown-heat": {
     id: "unknown-heat",
@@ -569,7 +545,6 @@ export const factors: Record<string, Factor> = {
     includes:
       "Natural gas is the most common main heating fuel in US homes, so I don't know uses the same gas-furnace math as an explicit gas answer.",
     excludes: "It is not a blend of gas, electric resistance, and heat pumps. If your home is electric, this overstates the fuel burned on site.",
-    confidence: "medium",
   },
   "heat-pump": {
     id: "heat-pump",
@@ -581,7 +556,6 @@ export const factors: Record<string, Factor> = {
     region: "Assumption",
     includes: "A single coefficient of performance so a heat pump can be compared with a furnace and with electric resistance.",
     excludes: "Cold-climate performance, backup heat, and the particular model. Real seasonal numbers vary.",
-    confidence: "low",
   },
   "garment-carbon": {
     id: "garment-carbon",
@@ -594,7 +568,6 @@ export const factors: Record<string, Factor> = {
     includes: "Fiber production only, averaged half cotton and half polyester.",
     excludes:
       "Spinning, dyeing, sewing, shipping, washing, and disposal. Those add more. A coat is heavier than a shirt.",
-    confidence: "low",
   },
   "garment-mass": {
     id: "garment-mass",
@@ -606,7 +579,6 @@ export const factors: Record<string, Factor> = {
     region: "Assumption",
     includes: "One weight so a count of new items can use the per-kilogram fiber factors.",
     excludes: "Shoes, coats, and jewelry. Four seasons are assumed, so a seasonal count becomes a year.",
-    confidence: "low",
   },
   "garment-water": {
     id: "garment-water",
@@ -618,7 +590,6 @@ export const factors: Record<string, Factor> = {
     region: "United Kingdom fiber averages",
     includes: "Mostly agricultural water for cotton. Polyester's figure is much smaller.",
     excludes: "Dyehouse water and washing at home.",
-    confidence: "low",
   },
   "garment-energy": {
     id: "garment-energy",
@@ -631,7 +602,6 @@ export const factors: Record<string, Factor> = {
     includes:
       "A rough kilowatt-hour reading of the fiber carbon, so clothing can sit beside home electricity. It uses the diesel factor as a fossil stand-in.",
     excludes: "WRAP did not publish this as kilowatt-hours. Treat it as the weakest kind of energy number.",
-    confidence: "low",
   },
   "parcel-carbon": {
     id: "parcel-carbon",
@@ -644,7 +614,6 @@ export const factors: Record<string, Factor> = {
     includes: "Linehaul, buildings, and last-mile delivery for the parcel itself.",
     excludes:
       "The product inside the box. A US route can differ from the study average. Packaging water is not included.",
-    confidence: "medium",
   },
   "shower-hot-water": {
     id: "shower-hot-water",
@@ -658,7 +627,6 @@ export const factors: Record<string, Factor> = {
       "A typical person's shower length and how often they shower, at the 2.1 gpm average flow EPA uses in its consumer water-and-energy note. Water is heated 70°F, 8.34 lb per gallon, using the same gas or electricity factor as the home's heat. Shorter showers in this app are 6 minutes.",
     excludes:
       "A household of several people, a different showerhead, or heating the rest of the home's tap water. Tap-water volume is not added to the water total.",
-    confidence: "medium",
   },
   "insulation-saving": {
     id: "insulation-saving",
@@ -672,7 +640,6 @@ export const factors: Record<string, Factor> = {
       "EPA's modeled 15% average reduction in heating and cooling from sealing leaks and adding insulation in attics, floors, and rim joists. This app applies that 15% only to the heating load already in the model.",
     excludes:
       "Cooling, a specific house, and a contractor's audit. Real savings vary by climate and how leaky the house was.",
-    confidence: "medium",
   },
   "secondhand-clothes": {
     id: "secondhand-clothes",
@@ -686,7 +653,32 @@ export const factors: Record<string, Factor> = {
       "A defined bigger clothing shift: half of the items you still buy new are treated as secondhand, so their fiber carbon, water, and derived energy drop out.",
     excludes:
       "The trip to the shop, cleaning a used garment, and a claim that every other purchase is actually thrifted.",
-    confidence: "low",
+  },
+  "us-typical-year": {
+    id: "us-typical-year",
+    name: "A typical U.S. year in this model",
+    valueLabel: "The same defaults this app uses when a question is left blank",
+    source: "Carbon Compass typical U.S. lifestyle answers, using the same EPA and food factors as your year",
+    year: "2026",
+    url: epaEquivalencies,
+    region: "United States-style defaults",
+    includes:
+      "A mixed diet, some food waste, 100 driving miles a week, two domestic round trips, a small house on gas heat, and typical clothing and orders. It is the same scope as your year, so the percent comparison is like-for-like.",
+    excludes:
+      "The EPA national inventory per person, which includes industry and power. This typical year is not a grade, and it is not a claim that everyone in the U.S. lives this way.",
+  },
+  "us-inventory-capita": {
+    id: "us-inventory-capita",
+    name: "U.S. greenhouse gases per person",
+    valueLabel: "6,343.2 million metric tons CO2e in 2022 ÷ 333,287,557 people ≈ 19.0 t CO2e per person",
+    source: "US EPA Inventory of U.S. Greenhouse Gas Emissions and Sinks: 1990–2022, and U.S. Census vintage 2022 population",
+    year: "2022",
+    url: "https://www.epa.gov/ghgemissions/inventory-us-greenhouse-gas-emissions-and-sinks-1990-2022",
+    region: "United States",
+    includes:
+      "Gross national emissions of carbon dioxide, methane, nitrous oxide, and fluorinated gases, divided by the 2022 U.S. population.",
+    excludes:
+      "This is much wider than a household lifestyle year. It includes industry, freight, and power for the whole economy, so it is background context, not a score for the year this app models.",
   },
   "diesel-energy": {
     id: "diesel-energy",
@@ -698,7 +690,6 @@ export const factors: Record<string, Factor> = {
     region: "United States factors",
     includes: "Used only to translate a carbon figure into rough kilowatt-hours when a source did not publish energy.",
     excludes: "It is not a claim that the parcel or the garment was made entirely from diesel.",
-    confidence: "low",
   },
 };
 

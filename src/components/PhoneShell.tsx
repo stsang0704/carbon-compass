@@ -8,6 +8,7 @@ type Props = {
   action?: ReactNode;
   hero?: ReactNode;
   overlap?: ReactNode;
+  heroTone?: "teal";
 };
 
 export function PhoneShell({
@@ -18,11 +19,12 @@ export function PhoneShell({
   action,
   hero,
   overlap,
+  heroTone,
 }: Props) {
   const nav = Boolean(onBack || action || (kicker && !hero));
   return (
     <div className={`phone ${hero ? "split" : "plain"}`}>
-      <header className="hero">
+      <header className={`hero${heroTone === "teal" ? " is-teal" : ""}`}>
         {nav ? (
           <div className="topbar">
             {onBack ? (

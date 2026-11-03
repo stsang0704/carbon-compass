@@ -1,3 +1,4 @@
+import { Leaf } from "lucide-react";
 import { PhoneShell } from "../components/PhoneShell";
 
 export function Welcome({ onStart }: { onStart: () => void }) {
@@ -14,8 +15,8 @@ export function Welcome({ onStart }: { onStart: () => void }) {
       }
       overlap={
         <div className="plant-card welcome-card">
-          <span className="glyph" aria-hidden="true">
-            🌱
+          <span className="glyph welcome-glyph" aria-hidden="true">
+            <Leaf size={22} strokeWidth={1.75} absoluteStrokeWidth />
           </span>
           <span className="plant-copy">
             <span className="plant-title">Even simple changes can make a meaningful difference.</span>

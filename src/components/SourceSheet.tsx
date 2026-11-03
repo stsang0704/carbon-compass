@@ -1,5 +1,7 @@
-import { factors, published } from "../data/factors";
+import { factors, published, usPerCapitaKgCo2e } from "../data/factors";
+import { lifestyleCompare, typicalUsLifestyleKg } from "../model/compare";
 import {
+  formatCarbon,
   formatDrivingMiles,
   formatGasolineGallons,
   formatMetric,
@@ -8,7 +10,7 @@ import {
   savedEquivalence,
   subtractImpacts,
 } from "../model/format";
-import type { Confidence, Footprint, ImpactLine, Impacts } from "../model/types";
+import type { Footprint, ImpactLine, Impacts } from "../model/types";
 import { ENERGY_MIX_NOTE } from "../model/types";
 
 type Props = {
@@ -19,15 +21,40 @@ type Props = {
   comparisonKg?: number;
   savedKg?: number;
   onClose: () => void;
+  /** Renders the method and source rows without the full-screen sheet chrome. */
+  embedded?: boolean;
+  /** Leaves out recommendation-share and selected-change notes. */
+  omitRecommendationNotes?: boolean;
 };
 
-const confidenceLabel: Record<Confidence, string> = {
-  high: "High confidence",
-  medium: "Medium confidence",
-  low: "Low confidence",
-};
+export function SourceSheet({
+  title,
+  intro,
+  footprint,
+  baseline,
+  comparisonKg,
+  savedKg,
+  onClose,
+  embedded = false,
+  omitRecommendationNotes = false,
+}: Props) {
+  const body = (
+    <>
+      {embedded ? <p className="sources-disclosure-intro">{intro}</p> : null}
+      <p className="disclaimer">{ENERGY_MIX_NOTE}</p>
+      {comparisonKg !== undefined ? <LifestyleCompare carbonKg={comparisonKg} /> : null}
+      {comparisonKg !== undefined && !omitRecommendationNotes ? <TypicalShareNote /> : null}
+      {comparisonKg !== undefined ? <GasolineCompare carbonKg={comparisonKg} /> : null}
+      {savedKg !== undefined && !omitRecommendationNotes ? <SavedCompare savedKg={savedKg} /> : null}
+      {footprint.lines.map((line) => {
+        const before = baseline?.lines.find((item) => item.id === line.id);
+        return <LineBlock key={line.id} line={line} before={before} />;
+      })}
+    </>
+  );
 
-export function SourceSheet({ title, intro, footprint, baseline, comparisonKg, savedKg, onClose }: Props) {
+  if (embedded) return <div className="sheet sheet-embedded">{body}</div>;
+
   return (
     <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="source-title">
       <header className="hero sheet-hero">
@@ -44,15 +71,7 @@ export function SourceSheet({ title, intro, footprint, baseline, comparisonKg, s
           <p className="lede">{intro}</p>
         </div>
       </header>
-      <div className="sheet-scroll">
-        <p className="disclaimer">{ENERGY_MIX_NOTE}</p>
-        {comparisonKg !== undefined ? <GasolineCompare carbonKg={comparisonKg} /> : null}
-        {savedKg !== undefined ? <SavedCompare savedKg={savedKg} /> : null}
-        {footprint.lines.map((line) => {
-          const before = baseline?.lines.find((item) => item.id === line.id);
-          return <LineBlock key={line.id} line={line} before={before} />;
-        })}
-      </div>
+      <div className="sheet-scroll">{body}</div>
     </div>
   );
 }
@@ -91,6 +110,60 @@ function LineBlock({ line, before }: { line: ImpactLine; before?: ImpactLine }) 
       {line.factorIds.map((id) => (
         <FactorCard key={id} id={id} />
       ))}
+    </article>
+  );
+}
+
+function LifestyleCompare({ carbonKg }: { carbonKg: number }) {
+  const compare = lifestyleCompare(carbonKg);
+  return (
+    <article className="calc">
+      <h3>U.S. comparison</h3>
+      <p className="quiet">
+        A typical U.S. year in this model is {compare.typicalLabel}. {compare.percentLine}
+      </p>
+      <ol className="steps">
+        <li>Your starting year is {plainNumber(carbonKg, 0)} kg CO2e.</li>
+        <li>
+          The typical year uses this app's U.S. defaults: {plainNumber(compare.typicalKg, 0)} kg CO2e.
+        </li>
+        <li>
+          Difference ÷ typical year × 100 ≈ {compare.percent}% {compare.direction === "near" ? "difference" : compare.direction}.
+        </li>
+        <li>
+          This is context, not a verdict. The EPA national inventory is about{" "}
+          {plainNumber(usPerCapitaKgCo2e / 1000, 1)} t CO2e per person, but that includes industry and
+          power, so it is a wider picture than this lifestyle year.
+        </li>
+      </ol>
+      <FactorCard id="us-typical-year" />
+      <FactorCard id="us-inventory-capita" />
+    </article>
+  );
+}
+
+function TypicalShareNote() {
+  const typicalKg = typicalUsLifestyleKg();
+  const typical = formatCarbon(typicalKg);
+  return (
+    <article className="calc">
+      <h3>Share of a comparable average person</h3>
+      <p className="quiet">
+        Each recommendation's kg saving is divided by this model's typical U.S. year, the same scope as
+        your survey.
+      </p>
+      <ol className="steps">
+        <li>
+          A typical U.S. year in this model is {plainNumber(typicalKg, 0)} kg CO2e ({typical.value}{" "}
+          {typical.unit}).
+        </li>
+        <li>Action saving ÷ typical year × 100 is the percent on each recommendation card.</li>
+        <li>
+          If you try more than one change in the same area, they are applied in order so overlapping
+          cuts are counted once.
+        </li>
+      </ol>
+      <FactorCard id="us-typical-year" />
     </article>
   );
 }
@@ -138,7 +211,10 @@ function SavedCompare({ savedKg }: { savedKg: number }) {
       <ol className="steps">
         {equivalence.kind === "miles" ? (
           <>
-            <li>Your selected changes reduce the year by {plainNumber(savedKg, 0)} kg CO2e.</li>
+            <li>
+              If adopted, these selected changes would reduce the modeled year by{" "}
+              {plainNumber(savedKg, 0)} kg CO2e.
+            </li>
             <li>
               EPA estimates a typical gasoline car emits {plainNumber(perMile, 3)} kg CO2e per mile.
             </li>
@@ -158,7 +234,10 @@ function SavedCompare({ savedKg }: { savedKg: number }) {
         ) : null}
         {equivalence.kind === "trees" ? (
           <>
-            <li>Your selected changes reduce the year by {plainNumber(savedKg, 0)} kg CO2e.</li>
+            <li>
+              If adopted, these selected changes would reduce the modeled year by{" "}
+              {plainNumber(savedKg, 0)} kg CO2e.
+            </li>
             <li>
               EPA estimates an urban tree takes up {plainNumber(perTree, 0)} kg CO2 per year, on
               average over ten years of growth.
@@ -177,7 +256,7 @@ function SavedCompare({ savedKg }: { savedKg: number }) {
         {equivalence.kind === "none" ? (
           <>
             <li>
-              When your selected changes reduce carbon, that saving is pictured with a published
+              When selected changes would reduce carbon if adopted, that estimated saving is pictured with a published
               factor — never a larger invented number.
             </li>
             <li>
@@ -213,9 +292,6 @@ function FactorCard({ id }: { id: string }) {
       <a href={factor.url} target="_blank" rel="noreferrer">
         Open the source
       </a>
-      <div className={`confidence confidence-${factor.confidence}`}>
-        {confidenceLabel[factor.confidence]}
-      </div>
     </section>
   );
 }

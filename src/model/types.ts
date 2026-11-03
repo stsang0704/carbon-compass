@@ -2,8 +2,6 @@ export type Category = "food" | "travel" | "home" | "stuff";
 
 export type Metric = "carbon" | "water" | "energy";
 
-export type Confidence = "high" | "medium" | "low";
-
 export type WaterKind = "virtual" | "none";
 
 export type EnergyKind = "site" | "embodied" | "fuel" | "derived" | "none";
@@ -84,7 +82,6 @@ export type Factor = {
   region: string;
   includes: string;
   excludes: string;
-  confidence: Confidence;
 };
 
 export type Depth = "close" | "ease" | "further";
