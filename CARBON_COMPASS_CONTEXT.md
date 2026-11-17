@@ -1,10 +1,10 @@
 # Carbon Compass — project handoff
 
-Last reviewed against the codebase on 28 October 2026, after the warmer visual system and the merge of My Footprint into one scrollable page. This document describes **what is actually implemented**. Planned or leftover work is labeled as such.
+Last reviewed against the codebase on 14 November 2026. The shell is Together, Explore, and My Impact. Email accounts through Supabase are in the app, but the `profiles` table had not been created in the linked project yet. This document describes **what is actually implemented**. Planned or leftover work is labeled as such.
 
 On-screen headings and product names are not always the same. Where they differ, both are listed. If this file and the code disagree, trust the code and update this file.
 
-Do not commit, push, or deploy unless the user asks. Do not change `calculate()` unless the user asks. Do not delete unused files unless the user asks. Do not overwrite the saved `localStorage` profile while testing; if a check-in or selection is written, restore the previous profile. Do not finish a survey, save a check-in, or toggle **Try this change** during a visual check.
+Do not commit, push, or deploy unless the user asks. Do not change `calculate()` unless the user asks. Do not delete unused files unless the user asks. Do not put the Supabase service-role key in the frontend, in git, or in this file. `.env.local` is gitignored and already holds the project URL and the public publishable key. Do not finish a survey, save a check-in, toggle **Try this change**, or log out during a visual check. Those actions write or clear `localStorage` key `carbon-compass-profile`. Logging out is supposed to clear that device cache after a successful save to the account.
 
 ---
 
@@ -18,11 +18,13 @@ Do not commit, push, or deploy unless the user asks. Do not change `calculate()`
 
 **Course context:** RISD CTC 3000. Phone-first React web app.
 
-**Core flow:** Welcome → 8-question survey → three destinations in a persistent bottom nav:
+**Core flow:** Logged out, the app opens on the email Welcome / Log in screen. After a session exists, a saved footprint opens **Together**. A signed-in person with no footprint sees the original product Welcome, then the 8-question survey, then the three destinations.
 
-- **My Footprint** — one vertically scrolling page. It shows the estimated annual footprint from the original survey, the largest-source sentence, an “Understand your footprint” section, and the category cards.
+- **Together** — the default homepage inside the shell. Sample community snapshot, sample activity cards, Lucide category tiles, and a labeled sample collective total. The people and the −1.4 tCO₂e figure are still samples. Accounts do not turn this into a real friend feed.
 - **Explore** — a short personal action list, a category browser with an unsaved trial, and hypothetical savings from selected actions.
-- **Your Impact** — estimated progress from the original survey and monthly check-ins, plus the Monthly Check-in flow.
+- **My Impact** — two views: **My Footprint** (the original survey year) and **Your Progress** (survey plus monthly check-ins).
+
+An earlier plan for a bottom nav of My Footprint, Explore, and Your Impact was replaced. Do not put My Footprint back in the bottom nav. Explore and My Impact both have more than one view, so both use tabs, swipe, and dots. Together does not.
 
 ---
 
@@ -30,12 +32,25 @@ Do not commit, push, or deploy unless the user asks. Do not change `calculate()`
 
 These features are in the running app.
 
+### Accounts
+
+Implemented in the client. The Supabase project answers on the Auth API. As of 14 November 2026, `public.profiles` was missing (`PGRST205`), so display name and footprint sync cannot succeed until `supabase/profiles.sql` is run in the SQL editor.
+
+- Logged out: `AuthGate.tsx` on the mint `PhoneShell`. Email and password log in, **Create account**, and **Forgot password**. Sign up asks for display name, email, and a password of at least 6 characters. If Supabase returns no session, the screen says to check email. A password-recovery link opens `ResetPassword`.
+- Signed in: the session is restored by `@supabase/supabase-js` (`persistSession`, `autoRefreshToken`, `detectSessionInUrl`). The app shell is not mounted until that session exists.
+- `Account.tsx` opens from the Lucide `UserRound` button at the top right of `AppShell` (`.account-launch`). It shows the display name and email, edits the name, and has a **Log out** button. Log out calls `supabase.auth.signOut({ scope: "local" })`.
+- Log out does not delete the auth user. It tries to save the current footprint to `profiles.footprint` first. If that save fails, the person stays signed in and sees an error, so the device cache is not cleared before the account copy exists.
+- After a successful log out, `clearProfile()` removes `carbon-compass-profile` from this browser and the screen returns to Welcome / Log in. Signing in again loads `profiles.footprint` when that row has one. If the remote footprint is empty and this browser still has a local profile, that local profile is uploaded. That is how an existing on-device footprint becomes the first account’s data.
+- Switching from one user id to another also clears the device cache before the next account is loaded.
+- No avatar upload, no in-app account deletion, and no friend graph. Email comes from `session.user.email`. The display name is `profiles.display_name`, also copied into user metadata.
+- Env names: `VITE_SUPABASE_URL` (project origin only, no `/rest/v1/`) and `VITE_SUPABASE_ANON_KEY` (the public publishable key). `.env.example` lists the names. Restart `npm run dev` after changing `.env.local`.
+
 ### Welcome and survey
 
-- `Welcome.tsx` is outside the shell. It uses a Lucide `Leaf`, not an emoji.
-- `Baseline.tsx` is the 8-question survey. `editing: false` is onboarding (back goes to Welcome; done **replaces** the profile, including check-ins). `editing: true` is Edit My Footprint (back returns to My Footprint; done replaces `baseline`, recomputes overrides from the still-selected actions, and **keeps** check-ins, history, and `selectedRecIds`).
-- Returning visitors with a saved profile open the shell on **My Footprint**.
-- There is no Start over control.
+- `Welcome.tsx` is the product intro after sign-in, when there is no footprint yet. It uses a Lucide `Leaf`, not an emoji. **Next.** starts the survey.
+- `Baseline.tsx` is the 8-question survey. `editing: false` is onboarding (back goes to that product Welcome; done **replaces** the profile, including check-ins). `editing: true` is Edit My Footprint (back returns to My Footprint; done replaces `baseline`, recomputes overrides from the still-selected actions, and **keeps** check-ins, history, and `selectedRecIds`).
+- A signed-in person whose account or browser already has a footprint opens the shell on **Together**.
+- There is no Start over control. Log out is not a reset of the account’s saved footprint.
 
 Survey questions, in order:
 
@@ -59,11 +74,13 @@ Blank numeric fields use **typical U.S. defaults** from `assumptions` (100 miles
 
 ### Emissions calculation
 
-`calculate(answers)` in `src/model/calculate.ts` is the only source of lifestyle kg. Carbon is the primary metric. Water and energy are still computed on the lines and shown in Sources. They are not the footprint or impact heroes. Equivalences are calculate-then-map. Never invent a kg number to make a nicer tree, gallon, or mile headline. Details are in section 6. The visual redesign and the My Footprint merge did not change `calculate()`, factors, or survey questions.
+`calculate(answers)` in `src/model/calculate.ts` is the only source of lifestyle kg. Carbon is the primary metric. Water and energy are still computed on the lines and shown in Sources. They are not the footprint or impact heroes. Equivalences are calculate-then-map. Never invent a kg number to make a nicer tree, gallon, or mile headline. Details are in section 6. The visual passes, the My Footprint merge, the U.S. chart, and Together did not change `calculate()`, factors, or survey questions.
 
 ### Personalized recommendations
 
-18 actions in `src/data/recommendations.ts`. For You shows only the top 3 from `personalizedRecommendations(baseline, [], 3)`. Browse lists the rest of a category, sortable by biggest reduction or easiest to adopt. **Try this change** adds the id to `selectedRecIds` and stores overrides. It does not change `baseline`, check-ins, or Your Progress. Catalog is in section 6.
+18 actions in `src/data/recommendations.ts`. For You shows only the top 3 from `personalizedRecommendations(baseline, [], 3)`. Browse lists the rest of a category, sortable by **Largest cut** (`"savings"`) or **Easiest** (`"ease"`, then savings). **Try this change** adds the id to `selectedRecIds` and stores overrides. It does not change `baseline`, check-ins, or Your Progress. Catalog is in section 6.
+
+`RecommendationCard` is compact on purpose. The face shows a `CategoryGlyph`, the title, an Easy / Moderate / Hard pill, a short share tag (`~12% of a typical U.S. year`, from `shareOfTypicalYear`’s percent, not its long sentence), and the kg figure. **How to start**, **Why it helps**, the recommendation note, and “Overlapping cuts are counted once.” open when the card is tapped. There is no `showWhy` prop and no “Added to your impact” confirmation line. The button still reads **Try this change.** or **Trying this ✓**.
 
 ### My Footprint
 
@@ -71,36 +88,58 @@ One page, `Compass.tsx`, the only view in the footprint destination. `calculate(
 
 Order on the page:
 
-1. Green header (`PhoneShell`, still passed `heroTone="teal"`, which only adds the unused class `is-teal`). Kicker “My Footprint,” line “Estimated annual footprint,” large serif annual CO₂e figure.
-2. One sentence from `footprintInsight` (largest category, plus the main line when it is at least half of that category). Example shape: “Travel is the largest part of this estimate, about 52%. Most of that is flights.”
-3. **Understand your footprint** (`Sources.tsx` with `embedded`). Lede: “Context for this estimate. It is a comparison, not a verdict.” Then the sourced U.S. lifestyle comparison (`lifestyleCompare`), the gasoline equivalence (`formatGasolineGallons`), and an expandable **Where the numbers come from** that embeds `SourceSheet` (methods, assumptions, Includes / Leaves out, source links). Recommendation-share and selected-change notes are omitted (`omitRecommendationNotes`).
-4. Category cards titled **By category** (this is the product’s Carbon Impact view; the heading is not “Carbon Impact”). Expanding a row lists the impact lines and can open Browse for that category.
-5. **Explore** opens For You. **Edit My Footprint** opens the survey.
+1. Green header (`PhoneShell`, still passed `heroTone="teal"`, which only adds the unused class `is-teal`). Kicker “My Footprint,” line “Estimated annual footprint,” large serif annual CO₂e figure. There is no insight paragraph under the hero.
+2. **Understand your footprint** (`Sources.tsx` with `embedded`). There is no lede sentence. Then:
+   - **U.S. comparison** (`UsCompareChart`): a horizontal bar chart. “Your estimate” is mint `#71C39E`. “Typical U.S. year” is muted `#D5CEC2`. Both bars share the longer value. Labels and `formatCarbonPerYear` values sit above each bar. Subtitle: “How your estimate compares.” One takeaway uses the existing `lifestyleCompare` percent and direction, for example “Your estimate is about 689% above this model's typical U.S. year.” Near (under 5%) says the estimate is close to this model's typical U.S. year. The long comparison paragraph and the “not a verdict” disclaimer are not on this card. The factor steps remain inside Sources.
+   - **Gasoline**: a number tile, `≈ {formatGasolineGallons}` and the caption “gallons.” The “not fuel you burned” sentence is only in the Sources gasoline steps.
+   - An expandable **Where the numbers come from** that embeds `SourceSheet` (methods, assumptions, Includes / Leaves out, source links). Recommendation-share and selected-change notes are omitted (`omitRecommendationNotes`). The summary is sticky inside `.view-pane`. See “Sticky sources heading” below.
+3. Category cards titled **By category**. Expanding a row lists the impact lines and can open Browse for that category. The largest category gets a chip from `footprintFocus` when one line is at least half of that category, for example **Mostly flights**. `footprintInsight` still builds the old sentence and is covered by tests, but Compass does not render it.
+4. **Explore** opens For You. **Edit My Footprint** opens the survey.
 
 `Sources.tsx` still contains a standalone `PhoneShell` titled “Understand” for the non-embedded, unfocused path, and a focused-habit `SourceSheet` path. `App.tsx` does not render either. Compass always passes `embedded` and does not pass a habit id. For You, Browse, Potential Impact, and Your Progress each have a “Where the numbers come from” button. `showSources()` sets `sourcesOpen` and opens My Footprint pane 0. The embedded disclosure then opens and scrolls into view (`scrollIntoView`, `block: "nearest"`).
 
 ### Explore
 
-**For You** (`Plan.tsx`, pane 0): the three greedy marginal actions. Card kg is that marginal `savedKg`. `rec.why` is visible (`showWhy`). Header action label is **Potential Impact** and opens Explore pane 2. The old “Reduce your impact” filter list is gone.
+**For You** (`Plan.tsx`, pane 0): the three greedy marginal actions, using the compact `RecommendationCard`. Caption: “Largest cuts first. Adding one does not change your footprint.” The averages disclaimer is not on this screen. Header action label is **Potential Impact** and opens Explore pane 2. The old “Reduce your impact” filter list is gone.
 
-**Browse** (`Explore.tsx`, pane 1): category `<select>` for Food, Travel, Home, and Clothing. A local draft (not the profile) drives hypothetical amounts inside a closed `<details class="trial-disclosure" data-no-swipe>` titled **Try a different amount**. Food waste and home type are dropdowns. Miles, flights, winter °F, clothes, and orders are a slider plus a number field. Diet uses `HabitControl` / `DietControl`. When the draft differs from baseline, a sentence and `CategoryBreakdown` with `before` set appear (colored remaining footprint, adjacent grey reduction). **Reset this trial** restores the baseline amounts. The trial is not written to `localStorage` and does not mark anything achieved. Below that, actions in the category can still be added to the plan. Sort options: **Biggest Carbon Reduction** (`"savings"`) and **Easiest to Adopt** (`"ease"`, then savings). The header action also says **Potential Impact** and opens pane 2.
+**Browse** (`Explore.tsx`, pane 1): four pastel category tiles (Food, Travel, Home, Clothing), not a `<select>`. The pressed tile uses `aria-pressed` and an inset Deep Forest ring. A local draft (not the profile) drives hypothetical amounts inside a closed `<details class="trial-disclosure" data-no-swipe>` titled **Try a different amount**. The summary still says “A possible change only. Nothing here is saved.” Food waste and home type are dropdowns. Miles, flights, winter °F, clothes, and orders are a slider plus a number field. Diet uses `HabitControl` / `DietControl`. When the draft differs from baseline, `CategoryBreakdown` with `before` set appears (colored remaining footprint, adjacent grey reduction). There is no trial sentence and no caption above those bars. **Reset this trial** restores the baseline amounts. The trial is not written to `localStorage` and does not mark anything achieved. Below that, actions in the category can still be added to the plan. Sort options: **Largest cut** (`"savings"`) and **Easiest** (`"ease"`, then savings). The header action also says **Potential Impact** and opens pane 2.
 
-**Potential Impact** (`Mix.tsx` `view="potential"`, pane 2): hypothetical savings only. See section 6. Empty state: “Your impact starts with one change.” and **Open your action plan** (opens For You, Explore pane 0). With selections: count line, `savedEquivalence`, `formatCarbonSaved`, selected-change rows with `CategoryGlyph` and Remove, then category bars titled **Your Potential Savings**.
+**Potential Impact** (`Mix.tsx` `view="potential"`, pane 2): hypothetical savings only. See section 6. Empty state: heading “Start with one change.”, “Nothing selected yet.”, and **Open your action plan** (opens For You, Explore pane 0). With selections: a “{count} selected” count, `savedEquivalence` as the hero number when there is a saving, `formatCarbonSaved` under it, selected-change rows with `CategoryGlyph` and Remove, then category bars titled **Your Potential Savings**. The averages disclaimer and the “Small individual choices…” closer are not on this screen. If selections exist but the combined saving is not positive, the heading is “Selected.”
 
 ### Your Impact
 
-`Mix.tsx` `view="progress"` is the **only** view in the Your Impact destination. There are no tabs, dots, or swipe handlers, because `AppShell` hides that chrome when a destination has fewer than two panes. On-screen kicker is **Your Impact**. Heading is **Your Progress**. It shows `ProgressChart`, the original baseline, the current footprint, the percentage change versus the original survey, and `effortMessage`. **Monthly Check-in** is a primary button. “Compare your carbon footprint to previous month” appears only when **two or more check-ins** exist. Selected actions are not included. With no check-ins, the chart is the baseline point plus “Your journey starts here…”
+`Mix.tsx` `view="progress"` is My Impact pane 1, so it shares that destination’s tabs, swipe, and two dots. On-screen kicker is still **Your Impact**. Heading is **Your Progress**. There is no lede under the heading. It shows `ProgressChart`, then three stat blocks (Original, the latest check-in month or “Current”, and Change), then one `effortMessage`. With no check-ins, the chart is the baseline point plus “Check in to add the next point.” **Monthly Check-in** is a primary button. **Previous month** is a two-bar chart (earlier month in the muted bar, latest month in mint) and appears only when **two or more check-ins** exist. The takeaway is the existing `monthCompare` line. Selected actions are not included.
 
 This destination is not the app’s start screen.
 
 ### Monthly Check-in
 
-`CheckIn.tsx` is a full screen outside the shell, opened from Your Progress. Phases: survey (the same 8 questions), reflect, results, saved. Back from the first survey step, and done after save, return to **Your Impact** (impact pane 0). Reflections never enter `calculate()`. If nothing is selected, the reflect step says: “No changes are selected yet. You can still save this month's lifestyle update.” Selected rows use `CategoryGlyph`. Before/after bars are `FootprintBars`. One snapshot per calendar month. Details are in section 6.
+`CheckIn.tsx` is a full screen outside the shell, opened from Your Progress. Phases: survey (the same 8 questions), reflect, results, saved. Back from the first survey step, and done after save, return to **Your Progress** (`impact` pane 1). Reflections never enter `calculate()`. If nothing is selected, the reflect step says: “No changes are selected yet. You can still save this month's lifestyle update.” Selected rows use `CategoryGlyph`. The results hero is the draft annual figure only. The body is `FootprintBars` plus one line, “Saves one snapshot for {month}.” or “Updates {month}.” The saved screen shows that figure, one `effortMessage`, the saved answers, and any reflections. It does not repeat the averages disclaimer or a second comparison paragraph. One snapshot per calendar month. Details are in section 6.
+
+### Together (homepage)
+
+`Together.tsx` is the only view in the Together destination, and it is the screen a saved footprint opens on. It is one AppShell pane, so it has no tabs, swipe, or dots. It uses the same mint `PhoneShell` hero as the other pages. `.cc-home .hero h2` overrides the global serif heading to Source Sans 3, 18px, weight 650, white: “Better together.” The lede is “Small changes, shared journeys.”
+
+On the page, in order:
+
+1. A pale mint sample card (`sampleHome`): portraits, **+9**, **12 Friends**, **28 Changes tried**. Labeled **Sample**.
+2. **What others are trying.** A Friends / Community menu swaps `homeActivities`. Each card has a portrait, a sample title, a category tag with a 14px Lucide `CategoryGlyph`, and a small scene drawing from `Illustrations.tsx` (`SceneArt`: salad, waste, mend, bike, flights, or house). Hearts are React state only. **Try it too** calls `toggleRec`, so the action is saved as a potential change and the button becomes **Trying this**. It does not change the baseline, check-ins, or Your Progress.
+3. **Try something new.** Four pastel category tiles, the same classes as Explore. Icons are Lucide `Leaf`, `Car`, `House`, and `Shirt` at the Explore tile size (36px circle, 20px stroke). Home and Clothing circles are transparent so the icon sits on the tile. Tiles call `onBrowse` and open Explore Browse. They do not use the custom salad, bicycle, house, or shirt illustrations.
+4. **Our impact together.** Another sample card: **28 Changes tried** and **−1.4 tCO₂e**, labeled **Sample estimate**. That string is `sampleHome.avoided`. It is not a `calculate()` result.
+
+`sampleCircle` (245 kg, 80 kg, 31,000 L, 420 kWh) and `samplePosts` are still in `src/data/together.ts`. They are not mounted by `Together.tsx`. Do not put that older collective card, post thread, or community browser back on the homepage unless the user asks. There is no comment screen. Real friends, posts, and notifications are not built. Accounts do not connect the signed-in person to these sample people.
+
+### Sticky sources heading
+
+The scroll container is `.view-pane`, not the page. `.sources-disclosure` uses `overflow: clip` so the rounded card clips without becoming the sticky scroll container (`overflow: hidden` would). The summary is `position: sticky`, `top: env(safe-area-inset-top)` on mobile and `top: 12px` at ≥ 480px so it clears the phone corner. A `summary::before` in the page color covers the 12px gap on desktop. The summary sticks only while its `<details>` section is in view, then scrolls away with that section. It does not cover the green header or the bottom nav.
+
+Collapsing while the heading is stuck does not use the native close, which jumps the scroll. `Sources.tsx` `onSummaryClick` prevents the native toggle, smooth-scrolls `.view-pane` back to the summary’s in-flow top, then closes on `scrollend`. A pointer or wheel cancels the return and leaves it open. Reduced motion snaps. If the heading is already in view, the native toggle is used.
 
 ### Persistence and shell foundations
 
-- `localStorage` key `carbon-compass-profile`, with migration from older answer shapes (`src/state/profile.ts`).
-- PWA registration in `main.tsx` (`vite-plugin-pwa`).
+- `localStorage` key `carbon-compass-profile`, with migration from older answer shapes (`src/state/profile.ts`). While signed in, the same JSON is written to `profiles.footprint`. Log out clears the device key after that save succeeds.
+- Supabase Auth session storage is separate and is owned by `@supabase/supabase-js`. Do not treat that session as the footprint.
+- PWA registration in `main.tsx` (`vite-plugin-pwa`). `AuthProvider` wraps `App`.
 - Desktop phone frame about 393×`min(852px, 100dvh - 32px)` at viewport ≥ 480px; full-width below that. Inside the shell, `#root` does not scroll; each `.view-pane` does.
 - Confidence badges are **removed** from factors, types, and the sources UI. Includes / Leaves out remain.
 - No React Router. Screen state is in `src/App.tsx`.
@@ -109,26 +148,27 @@ This destination is not the app’s start screen.
 
 ## 3. Navigation (implemented)
 
-Two earlier plans were built and then replaced. Do not restore either unless the user asks.
+Three earlier plans were built and then replaced. Do not restore any of them unless the user asks.
 
 1. **Exactly two swipeable views in every destination**, with Potential and Progress both under Your Impact.
 2. **My Footprint as two panes**, Overview and Understand, with tabs, swipe, and two dots.
+3. **My Footprint as its own bottom-nav tab, beside Your Impact.** That four-tab shell was replaced. My Footprint now lives inside My Impact.
 
 Current shell:
 
-`AppShell` (`src/components/AppShell.tsx`) keeps all three destinations mounted. Inactive ones use the `hidden` attribute, and `.destination[hidden] { display: none }`. Each destination remembers its pane. `PaneIndex` is a number. Labels live on the destination table in `AppShell`, not as a second copy of the screens.
+`AppShell` (`src/components/AppShell.tsx`) keeps all three destinations mounted. Inactive ones use the `hidden` attribute, and `.destination[hidden] { display: none }`. Each destination remembers its pane. `PaneIndex` is a number. Labels live on the destination table in `AppShell`, not as a second copy of the screens. A `UserRound` button (`.account-launch`) sits at the top right of the shell and opens Profile / Settings. `.view-tabs` has extra right padding so that button does not cover the last tab label.
 
 | Destination | Bottom-nav icon | Panes | Chrome |
 |---|---|---|---|
-| My Footprint | Lucide `ChartPie` | 0 only: `Compass.tsx`, which embeds `Sources` | No tabs, no dots, no swipe. The single tab label is `"My Footprint"`, so `labels.length` is 1. |
-| Explore | Lucide `Leaf` | 0 For You (`Plan.tsx`), 1 Browse (`Explore.tsx`), 2 Potential Impact (`Mix.tsx` `view="potential"`) | Tabs, swipe, three dots. Tab row has class `view-tabs is-wide` (13px, three columns). |
-| Your Impact | Lucide `TrendingDown` | 0 Your Progress only (`Mix.tsx` `view="progress"`) | No tabs, no dots, no swipe |
+| Together | Lucide `UsersRound` | 0 only: `Together.tsx` | No tabs, no dots, no swipe. Friends / Community is a menu on the page, not a pane. |
+| Explore | Lucide `Compass` | 0 For You (`Plan.tsx`), 1 Browse (`Explore.tsx`), 2 Potential Impact (`Mix.tsx` `view="potential"`) | Tabs, swipe, three dots. Tab row has class `view-tabs is-wide`. |
+| My Impact | Lucide `ChartColumn` | 0 My Footprint (`Compass.tsx`), 1 Your Progress (`Mix.tsx` `view="progress"`) | Tabs, swipe, two dots. |
 
-Bottom nav stays visible on all three destinations. Icons are Lucide outlines at size 22, stroke 1.75, `absoluteStrokeWidth`, drawn directly on the bar. There is no white circle behind an icon. The active tab is a soft mint pill behind the icon and the label. Inactive tabs sit on the warm ivory bar.
+Bottom nav is a 3-column grid (`repeat(3, minmax(0, 1fr))`). Labels are 12px. Icons are Lucide outlines at size 22, stroke 1.75, `absoluteStrokeWidth`, drawn directly on the bar. There is no circle behind a nav icon. The active tab is a soft mint pill. Inactive tabs sit on the warm ivory bar. Together, Explore, and My Impact all use the mint `PhoneShell` hero. Together’s title is the smaller sans override described above.
 
 ### Swipe, tabs, and dots
 
-Used only when `labels.length > 1`. That is Explore only.
+Used only when `labels.length > 1`. That is Explore and My Impact. Together is a single pane.
 
 - Track is `width: 100%`. Each pane is `flex: 0 0 100%`. The transform is inline `translateX(-${index * 100}%)` of that track. Do not switch to a percentage of a 300%-wide track. Explore pane 2 is `-200%` of the stage width.
 - Swipe threshold is 56px and `|dx| >= |dy|`. Swipes do not wrap. Tabs do wrap with ArrowLeft/Right/Up/Down. Home and End jump to the ends. Roving `tabIndex` is on the tab buttons.
@@ -137,15 +177,16 @@ Used only when `labels.length > 1`. That is Explore only.
 - After a real swipe, the following click is suppressed for about 400ms.
 - `prefers-reduced-motion: reduce` disables the track transition.
 
-Panel ids exist only for multi-pane destinations: `panel-for-you`, `panel-browse`, `panel-potential-impact`. My Footprint and Your Progress have no panel id. `#panel-overview` is no longer rendered. A leftover CSS rule `#panel-overview .footprint-insight` does nothing.
+Panel ids exist only for multi-pane destinations: `panel-for-you`, `panel-browse`, `panel-potential-impact`, `panel-my-footprint`, and `panel-your-progress`. Together has no panel id. `#panel-overview` is no longer rendered. A leftover CSS rule `#panel-overview .footprint-insight` does nothing.
 
 ### Other paths
 
 - My Footprint **Explore** opens For You (`explore`, 0). “See changes in …” sets `browseCategory` and opens Browse (`explore`, 1).
 - For You and Browse **Potential Impact** opens `explore`, 2.
 - Empty Potential **Open your action plan** opens `explore`, 0.
-- Check-in back and done open `impact`, 0.
-- `showSources()` opens My Footprint (`footprint`, 0) with the disclosure expanded and scrolled into view. It does not open a second pane.
+- Check-in back and done open Your Progress (`impact`, 1).
+- `showSources()` opens My Footprint (`impact`, 0) with the disclosure expanded and scrolled into view.
+- Together category tiles set `browseCategory` and open Browse (`explore`, 1). They do not toggle a recommendation. **Try it too** does call `toggleRec`.
 
 ---
 
@@ -154,24 +195,33 @@ Panel ids exist only for multi-pane destinations: `panel-for-you`, `panel-browse
 ### Completed
 
 - Welcome, survey, calculation, sources, 18 recommendations, localStorage, PWA, phone frame.
-- Three-destination bottom nav. Tabs, swipe, and dots appear only where a destination has more than one view.
-- For You (top 3), Browse trial (unsaved, inside a disclosure), Potential Impact under Explore.
-- Your Progress chart, baseline / current / percent, effort copy, previous-month card only after two check-ins.
+- Three-destination bottom nav: Together, Explore, My Impact. Tabs, swipe, and dots appear where a destination has more than one view. That is Explore and My Impact.
+- For You (top 3), Browse category tiles and unsaved trial, Potential Impact under Explore.
+- Compact recommendation cards. How and why open on tap.
+- Your Progress chart, three stat blocks, one effort line, previous-month bars only after two check-ins.
 - Monthly Check-in with before/after bars, reflections that do not affect kg, one snapshot per month.
-- Lucide category icons. Welcome uses `Leaf`. Bottom nav uses `ChartPie`, `Leaf`, `TrendingDown`.
+- Lucide category icons: Food `Leaf`, Travel `Car`, Home `House`, Clothing `Shirt`. Welcome uses `Leaf`. Bottom nav uses `UsersRound`, `Compass`, and `ChartColumn`. The account button uses `UserRound`.
 - Phase 5 interaction polish: swipe does not fight sliders, charts, or buttons; keyboard tabs; reduced motion.
-- Warmer visual system in section 5: ivory page, mint headers on every page, white cards, pill primary buttons, pastel category cards, difficulty-badge swap, smaller By category icons, bottom nav without icon circles.
-- My Footprint combined into one scrollable page in the order in section 2. Overview and Understand are no longer separate screens.
+- Warmer visual system in section 5: ivory page, mint headers, white cards, pill primary buttons, pastel category cards, difficulty-badge swap, smaller By category icons, bottom nav without icon circles.
+- My Footprint combined into one scrollable page. Overview and Understand are no longer separate screens.
+- U.S. comparison is a two-bar chart. Gasoline is a number tile. The largest category can show a “Mostly …” chip.
+- Sticky **Where the numbers come from** heading, including a smooth return when it is collapsed while stuck.
+- Together homepage: sample snapshot, sample activity carousel, Lucide category tiles, and a labeled −1.4 tCO₂e sample card. Not a real social network.
+- Email sign-up, log in, email confirmation handoff, password reset, persistent session, profile settings, and log out. The client is wired. The `profiles` table still has to be created in Supabase.
+- Shorter visual pass on Explore, Potential Impact, Your Progress, check-in results, and Together. Survey questions, friend stories, and the sources methodology stay written.
 
 ### Partially implemented
 
-- **Sources** explains factors, the typical lifestyle year, and gasoline. It does not yet explain check-in snapshots, the progress line, or how potential savings differ from an updated footprint. That copy now lives inside the My Footprint page, not on its own pane.
+- **Sources** explains factors, the typical lifestyle year, and gasoline inside the disclosure. The face of Understand your footprint is now the chart and the gasoline tile. It still does not explain, in that section, how a check-in updates the progress chart or why a selected action stays hypothetical.
 - **`history`** is still written on every profile save (`withMonthRecord` stores `scenarioKg` from the selected-recommendation scenario). The Progress UI does not read it.
-- **Water and energy** are calculated and available in Sources, and are off the footprint and impact heroes.
+- **Water and energy** are calculated and available in Sources, and are off the footprint and impact heroes. Together’s water and energy figures are separate sample constants, not `calculate()` output.
 - **Reflections** are stored on the snapshot and do not change the footprint. That is intentional, not a missing calculator hook.
+- **Together** is still a sample feed. Sign-in does not create friends, posts, or a shared community. Hearts stay in memory. **Try it too** only stores a potential action.
+- **Accounts** persist the session and, once `profiles` exists, the display name and footprint JSON. Avatar upload and account deletion are not built. Logout cannot finish safely until the footprint save succeeds.
 - **Legacy components** are still in the repo and are not routed. See section 7.
-- **`heroTone="teal"` / `.is-teal`** is still passed by Compass and has no CSS. Every hero uses the same mint fill. Do not treat the class as a color switch.
+- **`heroTone="teal"` / `.is-teal`** is still passed by Compass and has no CSS. Every hero that uses `PhoneShell` uses the same mint fill. Together does not use that hero. Do not treat the class as a color switch.
 - **`Sources.tsx` standalone Understand screen** remains in the file and is not mounted by `App.tsx`.
+- **`footprintInsight`** still returns the old sentence for tests. The page uses `footprintFocus` as a chip instead.
 
 ### Not built
 
@@ -179,8 +229,10 @@ Panel ids exist only for multi-pane destinations: `panel-for-you`, `panel-browse
 - Survey questions for heat source, showers, EVs, or transit mode.
 - Contrails, utility-bill heating, or a nutrition diary.
 - Adoption tracking that would turn a selected action into a completed reduction.
-- An in-app explanation of the progress chart, or of how check-ins differ from selected actions.
-- Any further numbered phase. Do not start the next item unless the user asks. Do not split My Footprint back into two swipeable screens unless the user asks.
+- The `profiles` table in the linked Supabase project. `supabase/profiles.sql` is written and has not been applied. Until it is, name and footprint sync return an error.
+- Real friend connections or community posts. Accounts are identity and footprint storage only.
+- An in-app explanation, beyond the existing sources steps, of how check-ins differ from selected actions.
+- Any further numbered phase. Do not start the next item unless the user asks. Do not split My Footprint back into two swipeable screens unless the user asks. Do not restore the three-destination, two-views-each shell.
 
 ---
 
@@ -212,7 +264,7 @@ The look the user asked for, and that is now in the CSS: warmer, friendlier, sof
 --insight-pale: #eaf5ed; /* leftover token. The insight card is white. */
 ```
 
-Header fill is the literal `#71C39E` on `.hero`, not a token. It applies to every hero, including `SourceSheet`, the survey, check-in, Explore, and Your Impact.
+Header fill is the literal `#71C39E` on `.hero`, not a token. It applies to every `PhoneShell` hero, including Together, the auth screens, settings, the survey, check-in, My Footprint, Explore, Your Progress, and `SourceSheet`. Together only overrides the hero title size. The page behind the cards stays Warm Ivory.
 
 - Background `#71C39E`. One solid color. No gradient.
 - `.hero::before` and `.hero::after` set `content: none`. No decorative circles on any hero.
@@ -224,13 +276,14 @@ White on `#71C39E` is below the usual text-contrast guideline. Deep Forest `#173
 
 Body text stays Deep Forest on Warm Ivory. Primary buttons are Deep Forest with white text, pill radius `999px`, shadow `0 8px 16px rgba(23, 62, 56, 0.12)`. Secondary buttons and the active nav pill are Pale Green with Deep Forest text. Focus rings, the tab underline, active dots, and the active nav icon use `#146B4E`. Inactive dots are `rgba(23, 62, 56, 0.22)`.
 
-### Cards, spacing, and the insight sentence
+### Cards and spacing
 
 - Page background is Warm Ivory. Content cards are white (`--cream` / `--card`).
-- Shared card radius is about 24px (plant cards, calc cards, recommendation cards, share cards). The insight card and the sources disclosure are 22px. Inputs and selects are about 20px. The active nav item is 20px.
+- Shared card radius is about 24px (plant cards, calc cards, recommendation cards, share cards). The sources disclosure is 22px. Inputs and selects are about 20px. The active nav item is 20px.
 - Stage padding is 22px. Stage and stage-body gap is 18px.
 - Shadow is `var(--shadow)`. The desktop phone-frame shadow is warm brown, not forest green.
-- The largest-source sentence is `.footprint-insight`: white, radius 22px, padding 16px 18px, type 17px, Deep Forest text. The same class on the Browse trial is also white, because `--cream` is white.
+- The largest source is a chip on the By category card (`footprintFocus`), for example “Mostly flights.” The old `.footprint-insight` sentence is not rendered. CSS for that class can remain. Do not put the paragraph back unless the user asks.
+- U.S. comparison bars: the user’s bar is `#71C39E`, the typical-year bar is `#D5CEC2`, and the track is `#F3EFE6`. Rounded ends. The same bar treatment is reused for Previous month on Your Progress.
 
 ### Difficulty badges
 
@@ -252,7 +305,7 @@ Shared lifestyle colors, used on potential bars, selected-change glyphs, check-i
 |---|---|---|---|
 | Food | `food` | `#3F8F6B` `--food` | `#E8F3EA` `--food-soft` |
 | Travel | `travel` | `#9575B8` `--travel` | `#F0EAF6` `--travel-soft` |
-| Home | `home` | `#5D8F9A` `--home` | `#E4EEF0` `--home-soft` |
+| Home | `home` | `#A77B58` `--home` | `#E4EEF0` `--home-soft` |
 | Clothing | `stuff` | `#C76D70` `--stuff` | `#F8EEEE` `--stuff-soft` |
 
 My Footprint **By category** cards only (`.breakdown-share-*` in `CategoryBreakdown` `ShareBreakdown`). Potential bars use `breakdown-card` without the share class, so they keep the shared palette and the white card. Do not restyle potential bars to the share-card size.
@@ -273,7 +326,9 @@ Share-card layout, exact sizes:
 - Bar height 8px, rounded ends. Tracks are a translucent version of the accent.
 - Card text stays Deep Forest.
 
-Home’s orange icon `#E99A16` on the pale circle `#F6E3B4` is the weak contrast case. It was left that way. Do not recolor it unless the user asks. Do not enlarge these icons. An earlier pass made them dominate the card; 64×64 and 36×36 is the requested size.
+The Home share-card icon is `--home` `#A77B58` on the pale yellow circle `--home-circle`. The Home share-card bar still uses `--home-accent` `#E99A16`. Do not enlarge these icons. An earlier pass made them dominate the card; 64×64 and 36×36 is the requested size.
+
+Category tiles on Explore and Together use a 36×36 circle and a 20×20 Lucide stroke. Home and Clothing tile circles are `background: transparent` (`.category-tile .glyph-home` and `.glyph-stuff`) so the brown house and coral shirt sit on the pastel tile. Food and Travel still use their pale circles, which are close to the tile color. Do not put custom illustrations back in those tiles. Activity-card scenes in `Illustrations.tsx` are separate and still drawn.
 
 Other `CategoryGlyph` uses (check-in rows, potential rows) stay on the 48×48 circle and 40×40 svg. Default `iconSize` is 40.
 
@@ -288,9 +343,10 @@ Other `CategoryGlyph` uses (check-in rows, potential rows) stay on the 48×48 ci
 
 | Where | Icon |
 |---|---|
-| Bottom nav, My Footprint | `ChartPie` |
-| Bottom nav, Explore | `Leaf` |
-| Bottom nav, Your Impact | `TrendingDown` |
+| Bottom nav, Together | `UsersRound` |
+| Bottom nav, Explore | `Compass` |
+| Bottom nav, My Impact | `ChartColumn` |
+| Account button | `UserRound` |
 | Category, Travel | `Car` |
 | Category, Food | `Leaf` |
 | Category, Home | `House` |
@@ -302,7 +358,7 @@ Other `CategoryGlyph` uses (check-in rows, potential rows) stay on the 48×48 ci
 ### Layout conventions
 
 - Mobile-first. At ≥ 480px the app is a rounded 393px phone on the Warm Ivory page.
-- Affirmative, non-judgmental copy. Averages disclaimer on data screens.
+- Affirmative, non-judgmental copy. The averages disclaimer stays inside Sources. It is not repeated on For You, Potential Impact, or the check-in results screen.
 - Do not restyle into a cold dashboard or a competitive leaderboard.
 - Diet-mix swatches in `src/data/diet.ts` are a separate set (`#3F8F6B`, `#C4924A`, `#5D8F9A`, `#C17B62`). The donut gap stroke in `DietControl.tsx` is `#FFFFFF` so it matches the white control card. They are not the lifestyle category palette.
 
@@ -356,6 +412,8 @@ These must stay separate.
 - Reflection choices never enter `calculate()`
 - Check-in answers are copied from the latest saved survey (`answersForCheckIn`: this month’s snapshot if it exists, otherwise the latest check-in, otherwise `baseline`), not from recommendation overrides
 - My Footprint shows `calculate(baseline)`, not the selected-rec scenario and not the latest check-in
+- The U.S. chart uses the same `lifestyleCompare` percent and direction. It does not introduce a new baseline. A World-average third bar was discussed and was not built.
+- Together’s “Our impact together” card does not call `calculate()`. The on-screen figure is the constant `sampleHome.avoided` (`−1.4 tCO₂e`). `sampleCircle` still holds 245 kg, 80 kg, 31,000 L, and 420 kWh, but that older card is not mounted. Hearts do not change the sample total. **Try it too** does write `selectedRecIds`. Viewing or hearting a card does not.
 
 ### Ranking and stacking
 
@@ -412,7 +470,7 @@ The before/after chart freezes “previous” when the check-in screen opens (`s
 
 `surveyProgress(baseline, checkIns, baselineMonth)` feeds `ProgressChart`. It prepends the original survey, then recomputes each check-in with `calculate`. It does not read `history` or selected recommendations.
 
-`effortMessage` strings, used on the check-in results hero and under the Your Progress percentage:
+`effortMessage` strings, used once under the Your Progress stat blocks and once on the saved check-in card:
 
 - Decrease: “Your efforts are adding up! Small changes can make a meaningful difference.”
 - Same or unavailable: “Every step counts. Change takes time, and there's always something new to explore.”
@@ -443,10 +501,10 @@ The before/after chart freezes “previous” when the check-in screen opens (`s
 
 ## 7. Technical context
 
-**Stack:** Vite 6, React 19, TypeScript, no router, `lucide-react` ^1.59.0, Vitest, `vite-plugin-pwa`. Package name `carbon-compass` 0.1.0.
+**Stack:** Vite 6, React 19, TypeScript, no router, `lucide-react` ^1.59.0, `@supabase/supabase-js` ^2.119.0, Vitest, `vite-plugin-pwa`. Package name `carbon-compass` 0.1.0.
 
 ```bash
-npm run dev      # Vite. Prefer http://localhost:5173/ if it is already running. Do not start a second server.
+npm run dev      # Vite. Prefer http://localhost:5173/ if it is already running. Do not start a second server. Restart it after changing .env.local.
 npm test         # vitest run
 npm run build    # tsc --noEmit && vite build
 npm run icons    # scripts/make-icons.mjs
@@ -458,11 +516,14 @@ npm run icons    # scripts/make-icons.mjs
 
 ```
 src/
-  App.tsx                 Screen state, shell mapping, profile, rec toggle, check-in save, edit survey
-  main.tsx                React mount, fonts, PWA service worker
+  App.tsx                 Auth gate, screen state, shell mapping, profile sync, rec toggle, check-in save, edit survey
+  main.tsx                React mount, AuthProvider, fonts, PWA service worker
   styles.css              All visual styling and color tokens
+  lib/supabase.ts         Browser client from the two public env vars. Null when they are missing.
   screens/
-    Welcome.tsx           Landing (outside the shell)
+    AuthGate.tsx          Logged-out welcome, sign up, forgot password, and the new-password screen
+    Account.tsx           Profile / Settings: name, email, save name, log out
+    Welcome.tsx           Product intro after sign-in when no footprint exists yet
     Baseline.tsx          8-question survey; also Edit My Footprint
     Compass.tsx           My Footprint page. Embeds Sources. Still passes heroTone="teal".
     Sources.tsx           Understand section when embedded. Standalone Understand screen is unused.
@@ -470,14 +531,17 @@ src/
     Explore.tsx           Explore → Browse
     Mix.tsx               Explore → Potential Impact, and Your Impact → Your Progress
     CheckIn.tsx           Monthly Check-in (outside the shell)
+    Together.tsx          Together homepage: sample snapshot, activity cards, category tiles, sample total
     Experiment.tsx        LEGACY — not routed
   components/
-    AppShell.tsx          Bottom nav, and tabs/swipe/dots only when a destination has 2+ labels
+    AppShell.tsx          Bottom nav, account button, and tabs/swipe/dots only when a destination has 2+ labels
+    Illustrations.tsx     Portraits, hearts, and Together activity-card scenes. Not the category tiles.
     PhoneShell.tsx        Hero + body. heroTone "teal" adds class is-teal, which has no color rules.
     RecommendationCard.tsx
     CategoryBreakdown.tsx Share cards, potential bars, CategoryGlyph
     FootprintBars.tsx     Check-in before/after bars
     ProgressChart.tsx     Your Progress line
+    UsCompareChart.tsx    Horizontal U.S. comparison bars
     SourceSheet.tsx
     HabitControl.tsx
     DietControl.tsx
@@ -491,6 +555,7 @@ src/
     diet.ts               Diet mix and donut colors
     home.ts               Apartment / Small / Larger / Other
     recommendations.ts    18 actions, apply, ranking, stacking, sort
+    together.ts           Sample homepage figures, activity cards, and unused older posts
   model/
     types.ts              Answers, categories, footprint types. No confidence field.
     calculate.ts          Pure annual footprint. Also exports unused bestSmallMove().
@@ -501,14 +566,16 @@ src/
     progress.ts           Month helpers. history scenarioKg is not the progress chart.
     checkin.ts            Snapshots, progress points, effort copy
   state/
-    profile.ts            Load, save, migrate, recordCheckIn, withMonthRecord
+    profile.ts            Load, save, migrate, parseProfile, recordCheckIn, withMonthRecord, clearProfile
+    auth.tsx              Session, recovery flag, AuthProvider
+    accountData.ts        Fetch and save display name and footprint JSON
 ```
 
-Also: `index.html`, `vite.config.ts`, `scripts/make-icons.mjs`, `public/favicon.svg`.
+Also: `index.html`, `vite.config.ts`, `scripts/make-icons.mjs`, `public/favicon.svg`, `supabase/profiles.sql`, `.env.example`. `.env.local` is local only.
 
 Tests: `calculate.test.ts`, `recommendations.test.ts`, `checkin.test.ts`, `profile.test.ts`, `potentialBar.test.ts`, `insight.test.ts`. There are no CSS tests. Add or update Vitest when changing `calculate`, `format`, `compare`, `potentialBar`, `progress`, `checkin`, `insight`, or recommendations.
 
-`App.tsx` screen names: `welcome`, `baseline` (`editing` boolean), `app`, `check-in`.
+`App.tsx` screen names, after a session exists: `welcome`, `baseline` (`editing` boolean), `app`, `check-in`, `account`. Logged out, `AuthGate` replaces those screens. A recovery session shows `ResetPassword` first.
 
 ### Legacy code (not in the current flow)
 
@@ -518,7 +585,7 @@ The non-embedded branch of `Sources.tsx` and the unused `.is-teal` class are lef
 
 ### How to verify UI
 
-Open `http://localhost:5173/` at phone width. Inside the shell, scroll `.view-pane`, not the page. Inactive destinations stay in the DOM, so `querySelector('.hero')` can hit a hidden hero. Scope to the visible destination, for example `.destination[aria-label="My Footprint"]` or `#panel-potential-impact`. My Footprint and Your Progress have no panel id.
+Open `http://localhost:5173/` at phone width. Without a session the first screen is Welcome / Log in, not Together. Inside the shell, scroll `.view-pane`, not the page. Inactive destinations stay in the DOM, so `querySelector('.hero')` can hit a hidden hero. Scope to the visible destination, for example `.destination[aria-label="My Impact"]` or `#panel-potential-impact`. Together has no panel id. Do not click **Try this change**, finish a survey, save a check-in, or log out during a visual check. Those actions write or clear `carbon-compass-profile`.
 
 The in-IDE browser screenshot tool has returned a stale frame while the accessibility tree was current. Prefer a fresh CDP `Page.captureScreenshot`, or confirm with `getBoundingClientRect` / computed style, before trusting a screenshot.
 
@@ -530,13 +597,16 @@ Do not treat these as bugs to fix unless the user asks. Several are intentional 
 
 ### Product gaps
 
-- Sources does not explain check-ins, the progress line, or the difference between potential savings and an updated footprint.
+- Sources still does not explain, on the face of Understand your footprint, how a check-in updates the progress chart or why a selected action stays hypothetical. The factor steps, typical-year method, and gasoline note remain inside the disclosure.
+- Together’s on-screen −1.4 tCO₂e is `sampleHome.avoided`, not the user’s `calculate()` result. Do not mix it into My Footprint or Your Progress. The unused `sampleCircle` constants are also not live totals.
+- `public.profiles` was missing on 14 November 2026. Sign-up can create an auth user, but saving a name or footprint, and a safe log out when a footprint exists, need the SQL file run first.
+- Vercel environment variables and the production redirect URL are not confirmed in the repo. Local redirect expected by the client is `window.location.origin`.
 - Reflections do not change `calculate()`.
 - There is no Start over control. Finishing a brand-new survey replaces the profile. Edit My Footprint does not wipe check-ins.
 - `history` is still written and is easy to confuse with `checkIns`.
 - The on-screen category heading is “By category,” not “Carbon Impact.”
 - Home’s By category icon (`#E99A16` on `#F6E3B4`) is below a 3:1 contrast guideline. The palette was requested this way.
-- White header text on `#71C39E` fails the usual contrast guideline. The user kept white titles on every header.
+- White header text on `#71C39E` fails the usual contrast guideline. The user kept white titles on every `PhoneShell` header, including Together.
 - Greedy ranking calls `calculate` many times. Fine at 18 recommendations.
 - `#panel-overview .footprint-insight` and `.is-teal` no longer change anything visible.
 
@@ -568,14 +638,20 @@ There is **no phase in progress**. The work below is already in the code:
 4. UX polish: swipe versus controls, disclosures, Lucide icons, keyboard, reduced motion.
 5. Navigation correction: Potential Impact is Explore’s third view. Your Impact is only Your Progress.
 6. An intermediate color pass (mint heroes, then a forest-green My Footprint-only hero and Overview pastels) was **replaced** by the warmer system in section 5. Do not restore `#327C62`, `#F8FBF6`, or decorative hero circles.
-7. Warmer visual system: Warm Ivory page, `#71C39E` headers with white text on every page, white cards, pill buttons, pastel share cards with darker circles, exact 64×64 / 36×36 By category icons, Hard/Moderate badge swap, bottom nav without icon circles.
-8. My Footprint is one scrollable page: header, insight, Understand your footprint, By category. No Overview/Understand tabs or dots.
+7. Warmer visual system: Warm Ivory page, `#71C39E` headers with white text on `PhoneShell` pages, white cards, pill buttons, pastel share cards with darker circles, exact 64×64 / 36×36 By category icons, Hard/Moderate badge swap, bottom nav without icon circles. Together uses that same header, with a smaller sans title.
+8. My Footprint is one scrollable page: header, Understand your footprint (U.S. chart, gasoline tile, sticky sources), By category. No insight paragraph. No Overview/Understand tabs or dots.
+9. Together is the first bottom-nav destination and the default homepage. It is a local illustrated prototype. Sample totals are not `calculate()` results. **Try it too** only stores a potential action.
+10. The shorter visual pass is in the code: compact change cards, category tiles, stat blocks, and shorter heroes. Survey questions, friend stories, and the sources methodology stay written on purpose.
 
-**Recommended next task, only if the user asks:** add copy inside the existing **Understand your footprint** section that explains, in the same sourced voice, how a monthly check-in updates the progress chart and why selected actions stay hypothetical. Do not change `calculate()`, the survey, storage, navigation, or colors as part of that explanation. Do not turn that section back into a second swipeable screen.
+**Current phase:** accounts are in the client and blocked on one Supabase step.
+
+**Recommended next task:** run `supabase/profiles.sql` in the Supabase SQL editor, then test sign up, email confirmation, log in, the top-right profile page, log out, and log in again. Confirm the name and footprint return, and that a second person on the same browser does not see the first person’s cache. Do not change `calculate()`, Explore, My Impact, or the Together layout as part of that test. Do not start friend feeds or community posts until that round trip works.
+
+After that, only if the user asks: add copy inside **Understand your footprint** that explains how a monthly check-in updates the progress chart and why selected actions stay hypothetical. That explanation is not written yet.
 
 ### Decisions a new chat must keep
 
-1. Your Impact is the destination title. Its only view is Your Progress. Potential Impact lives under Explore.
+1. The bottom nav label is **My Impact**. Its views are My Footprint, then Your Progress. Potential Impact lives under Explore. Do not revive a separate Your Impact tab.
 2. Selected actions are hypothetical. They never count as achieved reductions and never move the progress chart.
 3. Your Progress uses the original survey and monthly check-ins only. Do not plot `history.scenarioKg`.
 4. Monthly Check-in uses `FootprintBars`. Your Progress uses `ProgressChart`. One snapshot per calendar month.
@@ -585,11 +661,13 @@ There is **no phase in progress**. The work below is already in the code:
 8. My Footprint shows the starting survey year, not the scenario and not the latest check-in.
 9. A Browse trial is local React state.
 10. Category icons stay the Lucide set above. By category cards stay on the `--*-card` / `--*-circle` / `--*-accent` tokens at 64×64 circles and 36×36 icons. Other category UI stays on `--food`, `--travel`, `--home`, and `--stuff`.
-11. Every page header is solid `#71C39E` with white text and no decorative circles. Do not restore a forest-green My Footprint-only hero or Deep Forest text on mint.
+11. Every `PhoneShell` header is solid `#71C39E` with white text and no decorative circles, including Together. Together’s hero title is the smaller sans override. Do not restore a forest-green My Footprint-only hero or Deep Forest text on mint.
 12. Page background stays Warm Ivory `#FAF7F0`. Cards stay white. Primary text stays `#173E38`. Primary button text is white.
-13. My Footprint is one scrollable page. Explore is the only destination with tabs, swipe, and dots. Do not add Overview/Understand tabs back.
-14. Difficulty badges: Easy pale green, Moderate pale with a dark outline, Hard solid lime. Do not swap them again, and do not restyle other chips to match.
-15. Do not commit, push, or deploy unless the user asks.
+13. The bottom nav is Together, Explore, and My Impact. Together is the default when a saved profile opens. My Footprint is the first view inside My Impact, and Your Progress is the second. Explore and My Impact both use tabs, swipe, and dots. Do not put My Footprint back in the bottom nav, and do not add Overview/Understand tabs inside My Footprint.
+14. Together sample numbers stay labeled as samples. The live total is `−1.4 tCO₂e`, not the unused 245 kg card. Hearting a card must not call `toggleRec`. **Try it too** may. Category tiles only open Browse.
+15. Difficulty badges: Easy pale green, Moderate pale with a dark outline, Hard solid lime. Do not swap them again, and do not restyle other chips to match.
+16. Do not commit, push, or deploy unless the user asks.
+17. Accounts use the public Supabase key only. Log out clears the device footprint after the account save succeeds. Do not delete the auth user from the client. Do not describe the `profiles` table as created until a query succeeds.
 
 ### How to work in a new chat
 

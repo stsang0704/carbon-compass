@@ -309,6 +309,121 @@ export const samplePosts: SamplePost[] = [
   },
 ];
 
+/** Demonstration figures for the Together homepage. Not a calculate() result. */
+export const sampleHome = {
+  friends: 12,
+  moreFriends: 9,
+  changesTried: 28,
+  avoided: "−1.4 tCO₂e",
+} as const;
+
+export type ActivityScene = "salad" | "waste" | "mend" | "bike" | "flights" | "thermostat";
+export type PortraitId = "alex" | "jamie" | "maya" | "lina" | "sarah" | "kevin" | "sam";
+export type ActivityFeed = "friends" | "community";
+
+export type HomeActivity = {
+  id: string;
+  postId: string;
+  author: string;
+  portrait: PortraitId;
+  title: string;
+  category: Category;
+  recId: RecId;
+  scene: ActivityScene;
+  feed: ActivityFeed;
+};
+
+export const homeActivities: HomeActivity[] = [
+  {
+    id: "alex-lunches",
+    postId: "alex-monday",
+    author: "Alex",
+    portrait: "alex",
+    title: "Plant-based lunches",
+    category: "food",
+    recId: "food-plant-meal",
+    scene: "salad",
+    feed: "friends",
+  },
+  {
+    id: "jamie-waste",
+    postId: "jamie-waste",
+    author: "Jamie",
+    portrait: "jamie",
+    title: "Less food waste",
+    category: "food",
+    recId: "food-waste-less",
+    scene: "waste",
+    feed: "friends",
+  },
+  {
+    id: "maya-mend",
+    postId: "maya-repair",
+    author: "Maya",
+    portrait: "maya",
+    title: "Mending a sweater",
+    category: "stuff",
+    recId: "clothes-repair",
+    scene: "mend",
+    feed: "friends",
+  },
+  {
+    id: "lina-ride",
+    postId: "lina-october",
+    author: "Lina",
+    portrait: "lina",
+    title: "Walking short trips",
+    category: "travel",
+    recId: "travel-walk",
+    scene: "bike",
+    feed: "friends",
+  },
+  {
+    id: "sarah-meals",
+    postId: "sarah-meals",
+    author: "Sarah",
+    portrait: "sarah",
+    title: "Easy plant meals",
+    category: "food",
+    recId: "food-plant-meal",
+    scene: "salad",
+    feed: "community",
+  },
+  {
+    id: "kevin-flights",
+    postId: "kevin-flights",
+    author: "Kevin",
+    portrait: "kevin",
+    title: "Fewer flights",
+    category: "travel",
+    recId: "travel-flights",
+    scene: "flights",
+    feed: "community",
+  },
+  {
+    id: "sam-evening",
+    postId: "sam-thermostat",
+    author: "Sam",
+    portrait: "sam",
+    title: "A cooler evening",
+    category: "home",
+    recId: "home-thermostat",
+    scene: "thermostat",
+    feed: "community",
+  },
+  {
+    id: "maya-community",
+    postId: "maya-repair",
+    author: "Maya",
+    portrait: "maya",
+    title: "Repairing clothes",
+    category: "stuff",
+    recId: "clothes-repair",
+    scene: "mend",
+    feed: "community",
+  },
+];
+
 export function clonePosts(posts: SamplePost[]): SamplePost[] {
   return posts.map((post) => ({
     ...post,

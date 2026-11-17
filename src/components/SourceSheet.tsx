@@ -3,7 +3,6 @@ import { lifestyleCompare, typicalUsLifestyleKg } from "../model/compare";
 import {
   formatCarbon,
   formatDrivingMiles,
-  formatGasolineGallons,
   formatMetric,
   formatTreeCount,
   plainNumber,
@@ -44,7 +43,6 @@ export function SourceSheet({
       <p className="disclaimer">{ENERGY_MIX_NOTE}</p>
       {comparisonKg !== undefined ? <LifestyleCompare carbonKg={comparisonKg} /> : null}
       {comparisonKg !== undefined && !omitRecommendationNotes ? <TypicalShareNote /> : null}
-      {comparisonKg !== undefined ? <GasolineCompare carbonKg={comparisonKg} /> : null}
       {savedKg !== undefined && !omitRecommendationNotes ? <SavedCompare savedKg={savedKg} /> : null}
       {footprint.lines.map((line) => {
         const before = baseline?.lines.find((item) => item.id === line.id);
@@ -164,31 +162,6 @@ function TypicalShareNote() {
         </li>
       </ol>
       <FactorCard id="us-typical-year" />
-    </article>
-  );
-}
-
-function GasolineCompare({ carbonKg }: { carbonKg: number }) {
-  const gallons = formatGasolineGallons(carbonKg);
-  const perGallon = published.gasolineKgCo2PerGallon;
-  return (
-    <article className="calc">
-      <h3>Gasoline comparison</h3>
-      <p className="quiet">≈ {gallons} gallons of gasoline burned</p>
-      <ol className="steps">
-        <li>Your starting year is {plainNumber(carbonKg, 0)} kg CO2e.</li>
-        <li>
-          EPA estimates burning one gallon of gasoline emits {plainNumber(perGallon, 2)} kg of CO2.
-        </li>
-        <li>
-          {plainNumber(carbonKg, 0)} ÷ {plainNumber(perGallon, 2)} ≈ {gallons} gallons.
-        </li>
-        <li>
-          This is an emissions equivalence. It does not mean you literally burned that amount of
-          gasoline.
-        </li>
-      </ol>
-      <FactorCard id="gasoline-equivalent" />
     </article>
   );
 }

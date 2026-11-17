@@ -1,7 +1,7 @@
 import { useRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type TouchEvent } from "react";
-import { ChartPie, Leaf, TrendingDown, UsersRound, type LucideIcon } from "lucide-react";
+import { ChartColumn, Compass, UserRound, UsersRound, type LucideIcon } from "lucide-react";
 
-export type Destination = "footprint" | "explore" | "impact" | "together";
+export type Destination = "together" | "explore" | "impact";
 export type PaneIndex = number;
 
 const destinations: {
@@ -10,10 +10,9 @@ const destinations: {
   icon: LucideIcon;
   tabs: string[];
 }[] = [
-  { id: "footprint", label: "My Footprint", icon: ChartPie, tabs: ["My Footprint"] },
-  { id: "explore", label: "Explore", icon: Leaf, tabs: ["For You", "Browse", "Potential Impact"] },
-  { id: "impact", label: "Your Impact", icon: TrendingDown, tabs: ["Your Progress"] },
   { id: "together", label: "Together", icon: UsersRound, tabs: ["Together"] },
+  { id: "explore", label: "Explore", icon: Compass, tabs: ["Explore"] },
+  { id: "impact", label: "My Impact", icon: ChartColumn, tabs: ["My Footprint"] },
 ];
 
 type Props = {
@@ -21,12 +20,16 @@ type Props = {
   panes: Record<Destination, PaneIndex>;
   onDestination: (destination: Destination) => void;
   onPane: (destination: Destination, pane: PaneIndex) => void;
+  onAccount: () => void;
   views: Record<Destination, ReactNode[]>;
 };
 
-export function AppShell({ destination, panes, onDestination, onPane, views }: Props) {
+export function AppShell({ destination, panes, onDestination, onPane, onAccount, views }: Props) {
   return (
     <div className="app-shell">
+      <button className="account-launch" type="button" aria-label="Profile and settings" onClick={onAccount}>
+        <UserRound size={22} strokeWidth={1.75} absoluteStrokeWidth />
+      </button>
       {destinations.map((item) => (
         <section
           key={item.id}

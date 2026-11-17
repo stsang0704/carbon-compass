@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
-import { CategoryBreakdown } from "../components/CategoryBreakdown";
+import { useEffect, useRef, useState } from "react";
+import { CategoryBreakdown, CategoryGlyph } from "../components/CategoryBreakdown";
 import { HabitControl } from "../components/HabitControl";
 import { PhoneShell } from "../components/PhoneShell";
 import { RecommendationCard } from "../components/RecommendationCard";
 import { feel, habitsIn, homePresetOptions } from "../data/habits";
 import {
+  personalizedRecommendations,
+  recommendationById,
   recommendationStillApplies,
   recommendationsIn,
   sortRecommendations,
@@ -12,36 +14,46 @@ import {
   type RecSort,
 } from "../data/recommendations";
 import { calculate } from "../model/calculate";
-import { formatPotentialKg } from "../model/potentialBar";
+import { formatCarbon, savedEquivalence } from "../model/format";
 import type { Answers, Category, HabitId } from "../model/types";
 import { categories } from "../model/types";
 import type { HabitMeta } from "../data/habits";
 
+export type ExploreFocus = "for-you" | "browse" | "changes";
+
 type Props = {
   category: Category;
   baseline: Answers;
+  scenario: Answers;
   selected: RecId[];
+  focus: ExploreFocus;
+  focusNonce: number;
+  active: boolean;
   onCategoryChange: (category: Category) => void;
   onToggle: (id: RecId) => void;
   onBack: () => void;
-  onMix: () => void;
   onSources: () => void;
 };
 
 export function Explore({
   category,
   baseline,
+  scenario,
   selected,
+  focus,
+  focusNonce,
+  active,
   onCategoryChange,
   onToggle,
   onBack,
-  onMix,
   onSources,
 }: Props) {
   const [sort, setSort] = useState<RecSort>("savings");
   const baselineKey = JSON.stringify(baseline);
   const [draftKey, setDraftKey] = useState(baselineKey);
   const [draft, setDraft] = useState<Answers>(() => cloneAnswers(baseline));
+  const sawFocus = useRef(false);
+  const pendingScroll = useRef(false);
   if (draftKey !== baselineKey) {
     setDraftKey(baselineKey);
     setDraft(cloneAnswers(baseline));
@@ -49,45 +61,89 @@ export function Explore({
 
   const trial = experimentAnswers(baseline, draft);
   const original = calculate(baseline);
-  const next = calculate(trial);
-  const reductionKg = original.totals.carbon - next.totals.carbon;
+  const trialNext = calculate(trial);
   const changed = JSON.stringify(trial) !== JSON.stringify(baseline);
   const actions = sortRecommendations(
     baseline,
     recommendationsIn(category).filter((rec) => recommendationStillApplies(baseline, selected, rec)),
     sort,
   );
+  const forYou = personalizedRecommendations(baseline, [], 3);
+  const categoryLabel = categories.find((item) => item.id === category)?.label ?? "Food";
+  const selectedNext = calculate(scenario);
+  const savedKg = original.totals.carbon - selectedNext.totals.carbon;
+  const equivalence = savedEquivalence(savedKg);
+  const carbon = formatCarbon(Math.max(savedKg, 0));
+
+  useEffect(() => {
+    if (!sawFocus.current) {
+      sawFocus.current = true;
+      return;
+    }
+    pendingScroll.current = true;
+  }, [focusNonce]);
+
+  useEffect(() => {
+    if (!active || !pendingScroll.current) return;
+    pendingScroll.current = false;
+    const node = document.getElementById(sectionId(focus));
+    const pane = node?.closest(".view-pane");
+    if (!(node instanceof HTMLElement) || !(pane instanceof HTMLElement)) return;
+    const top = node.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+    pane.scrollTo({ top: Math.max(0, top - 8), behavior: "smooth" });
+  }, [active, focus, focusNonce]);
 
   function update(id: HabitId, value: Answers[HabitId]) {
-    setDraft((current) => ({ ...current, [id]: value }));
+    setDraft((currentDraft) => ({ ...currentDraft, [id]: value }));
+  }
+
+  function scrollToSection(next: ExploreFocus) {
+    const node = document.getElementById(sectionId(next));
+    const pane = node?.closest(".view-pane");
+    if (!(node instanceof HTMLElement) || !(pane instanceof HTMLElement)) return;
+    const top = node.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+    pane.scrollTo({ top: Math.max(0, top - 8), behavior: "smooth" });
   }
 
   return (
-    <PhoneShell
-      onBack={onBack}
-      backLabel="My Footprint"
-      kicker="Browse"
-      action={
-        <button className="text-button" type="button" onClick={onMix}>
-          Potential Impact
-        </button>
-      }
-    >
-      <label className="browse-field">
-        <span>Category</span>
-        <select
-          value={category}
-          onChange={(event) => onCategoryChange(event.target.value as Category)}
-        >
-          {categories.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </label>
+    <PhoneShell onBack={onBack} backLabel="My Footprint" kicker="Explore">
+      <section className="explore-block" id="explore-for-you">
+        <h3>For You</h3>
+        <p className="quiet">Largest cuts first. Adding one does not change your footprint.</p>
+        {forYou.length === 0 ? (
+          <p className="body-copy">None of the modeled actions apply to this footprint yet.</p>
+        ) : (
+          <div className="rec-list">
+            {forYou.map((item) => (
+              <RecommendationCard
+                key={item.rec.id}
+                rec={item.rec}
+                baseline={baseline}
+                added={selected.includes(item.rec.id)}
+                savedKg={item.saved}
+                onToggle={() => onToggle(item.rec.id)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
-      <section className="rec-section">
+      <section className="explore-block" id="explore-browse">
+        <h3>Browse Changes</h3>
+        <div className="category-tiles" role="group" aria-label="Category">
+          {categories.map((item) => (
+            <button
+              key={item.id}
+              className={`category-tile category-tile-${item.id} ${category === item.id ? "is-on" : ""}`}
+              type="button"
+              aria-pressed={category === item.id}
+              onClick={() => onCategoryChange(item.id)}
+            >
+              <CategoryGlyph id={item.id} size={22} />
+              {item.label}
+            </button>
+          ))}
+        </div>
         <details className="trial-disclosure" data-no-swipe>
           <summary>
             <span className="trial-summary-copy">
@@ -114,33 +170,15 @@ export function Explore({
             ) : null}
           </div>
         </details>
-      </section>
-
-      {changed ? (
-        <>
-          <p className="footprint-insight">
-            {reductionKg > 0.5
-              ? `Potential reduction: ${formatPotentialKg(reductionKg)} kg CO₂e/year`
-              : reductionKg < -0.5
-                ? `This trial is about ${formatPotentialKg(-reductionKg)} kg CO₂e/year higher than your footprint, so the bars show no reduction.`
-                : "This matches your footprint, so there is no potential reduction yet."}
-          </p>
-          <CategoryBreakdown
-            title="If you tried this"
-            footprint={next}
-            before={original}
-            caption="A possible footprint for this trial, not a saved change or a confirmed reduction."
-          />
-        </>
-      ) : null}
-
-      <section className="rec-section">
-        <h3>Actions in {categories.find((item) => item.id === category)?.label}</h3>
+        {changed ? <CategoryBreakdown title="If you tried this" footprint={trialNext} before={original} /> : null}
+        <div className="section-head">
+          <h3>Actions in {categoryLabel}</h3>
+        </div>
         <label className="browse-field">
           <span>Sort</span>
           <select value={sort} onChange={(event) => setSort(event.target.value as RecSort)}>
-            <option value="savings">Biggest Carbon Reduction</option>
-            <option value="ease">Easiest to Adopt</option>
+            <option value="savings">Largest Reduction</option>
+            <option value="ease">Easiest</option>
           </select>
         </label>
         <div className="rec-list">
@@ -159,11 +197,73 @@ export function Explore({
           )}
         </div>
       </section>
+
+      <section className="explore-block" id="explore-changes">
+        <h3>Your Changes</h3>
+        {selected.length === 0 ? (
+          <>
+            <p className="quiet">Nothing selected yet. Try a change above to see the potential savings.</p>
+            <button className="btn-secondary" type="button" onClick={() => scrollToSection("for-you")}>
+              See actions for you
+            </button>
+          </>
+        ) : (
+          <div className="habit-list">
+            {selected.map((id) => {
+              const rec = recommendationById(id);
+              const area = categories.find((item) => item.id === rec.category);
+              return (
+                <div key={id} className="plant-card habit-row changed rec-mix-row">
+                  <CategoryGlyph id={rec.category} />
+                  <span className="plant-copy">
+                    <span className="plant-title">{rec.title}</span>
+                    <span className="plant-sub">{area?.label}</span>
+                  </span>
+                  <button className="text-button rec-remove" type="button" onClick={() => onToggle(id)}>
+                    Remove
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {selected.length > 0 ? (
+          <>
+            <article className="potential-summary">
+              <p className="potential-kicker">Potential savings</p>
+              {savedKg > 0 ? (
+                <p className="potential-figure">
+                  {carbon.value} {carbon.unit} CO₂e / year
+                </p>
+              ) : (
+                <p className="potential-line">These selections do not lower this estimate.</p>
+              )}
+              {equivalence.kind === "trees" ? <p className="potential-line">{equivalence.heading}</p> : null}
+              {equivalence.kind === "miles" ? (
+                <p className="potential-line">
+                  {equivalence.heading} {equivalence.unit}
+                </p>
+              ) : null}
+              <p className="potential-count">
+                {selected.length} selected {selected.length === 1 ? "change" : "changes"}
+              </p>
+            </article>
+            <CategoryBreakdown title="Your Potential Savings" footprint={selectedNext} before={original} />
+          </>
+        ) : null}
+      </section>
+
       <button className="btn-secondary" type="button" onClick={onSources}>
         Where the numbers come from
       </button>
     </PhoneShell>
   );
+}
+
+function sectionId(focus: ExploreFocus): string {
+  if (focus === "browse") return "explore-browse";
+  if (focus === "changes") return "explore-changes";
+  return "explore-for-you";
 }
 
 function TrialField({

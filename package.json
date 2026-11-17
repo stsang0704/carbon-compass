@@ -13,6 +13,7 @@
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.2.9",
     "@fontsource-variable/source-sans-3": "^5.2.8",
+    "@supabase/supabase-js": "^2.119.0",
     "lucide-react": "^1.59.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

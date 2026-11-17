@@ -27,14 +27,18 @@ const KEY = "carbon-compass-profile";
 
 const meatDiets = ["none", "fish", "chickenPork", "mix", "beef"] as const;
 
+export function parseProfile(value: unknown): Profile | null {
+  return migrateProfile(value);
+}
+
 export function loadProfile(): Profile | null {
   const storage = browserStorage();
   if (!storage) return null;
   try {
     const raw = storage.getItem(KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Profile;
-    const profile = migrateProfile(parsed);
+    const parsed = JSON.parse(raw) as unknown;
+    const profile = parseProfile(parsed);
     if (!profile) return null;
     if (JSON.stringify(profile) !== JSON.stringify(parsed)) saveProfile(profile);
     return profile;

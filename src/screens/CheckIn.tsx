@@ -12,10 +12,8 @@ import {
   checkInForMonth,
   describePercent,
   effortMessage,
-  footprintComparison,
   footprintKg,
   percentChange,
-  previousCheckIn,
   reflectionOptions,
   type CheckInSnapshot,
   type ReflectionChoice,
@@ -23,7 +21,7 @@ import {
 import { formatCarbonPerYear } from "../model/format";
 import { monthKey, monthLabel } from "../model/progress";
 import type { Answers } from "../model/types";
-import { AVERAGES_NOTE, categories } from "../model/types";
+import { categories } from "../model/types";
 
 type Phase = "survey" | "reflect" | "results" | "saved";
 
@@ -54,8 +52,6 @@ export function CheckIn({ baseline, checkIns, selected, onSave, onBack, onDone }
   const reflectionReady = selected.length === 0 || selected.every((id) => reflections[id]);
   const nextKg = footprintKg(draft);
   const originalKg = footprintKg(baseline);
-  const previous = previousCheckIn(checkIns, month);
-  const previousKg = previous ? footprintKg(previous.answers) : null;
   const versusBaseline = describePercent(percentChange(originalKg, nextKg));
 
   function handleBack() {
@@ -112,8 +108,6 @@ export function CheckIn({ baseline, checkIns, selected, onSave, onBack, onDone }
           <p className="kicker">Monthly Check-in · Step 3 of 4</p>
           <p className="hero-count">Estimated annual footprint</p>
           <h2>{formatCarbonPerYear(nextKg)}</h2>
-          <p className="lede">{versusBaseline.label} compared with your original baseline.</p>
-          <p className="lede">{effortMessage(versusBaseline.direction)}</p>
         </>
       );
     }
@@ -213,32 +207,9 @@ export function CheckIn({ baseline, checkIns, selected, onSave, onBack, onDone }
 
       {phase === "results" ? (
         <>
-          <p className="disclaimer">{AVERAGES_NOTE}</p>
           <FootprintBars previousKg={startingKg} updatedKg={nextKg} />
-          <article className="plant-card progress-card">
-            <h3>Compared with your original baseline</h3>
-            <p className="body-copy">{formatCarbonPerYear(originalKg)}</p>
-            <p className="body-copy">{footprintComparison(originalKg, nextKg, "your first survey")}</p>
-          </article>
-          <article className="plant-card progress-card">
-            <h3>Compared with your previous check-in</h3>
-            {previous && previousKg !== null ? (
-              <>
-                <p className="body-copy">
-                  {monthLabel(previous.month)} · {formatCarbonPerYear(previousKg)}
-                </p>
-                <p className="body-copy">{footprintComparison(previousKg, nextKg, monthLabel(previous.month))}</p>
-              </>
-            ) : (
-              <p className="body-copy">
-                There isn't an earlier check-in yet. Your original baseline is the starting point.
-              </p>
-            )}
-          </article>
-          <p className="body-copy">
-            {editing
-              ? `Saving updates your ${monthLabel(month)} check-in. It does not add a second entry for this month.`
-              : `Saving stores one snapshot for ${monthLabel(month)}.`}
+          <p className="quiet">
+            {editing ? `Updates ${monthLabel(month)}.` : `Saves one snapshot for ${monthLabel(month)}.`}
           </p>
           <button className="btn-primary" type="button" onClick={save}>
             Save this month
@@ -251,7 +222,6 @@ export function CheckIn({ baseline, checkIns, selected, onSave, onBack, onDone }
           <article className="plant-card progress-card">
             <h3>Estimated annual footprint</h3>
             <p className="progress-figure">{formatCarbonPerYear(footprintKg(saved.answers))}</p>
-            <p className="body-copy">{versusBaseline.label} compared with your original baseline.</p>
             <p className="compare-bar-message">{effortMessage(versusBaseline.direction)}</p>
           </article>
           <div className="section-head">
@@ -282,7 +252,6 @@ export function CheckIn({ baseline, checkIns, selected, onSave, onBack, onDone }
                   );
                 })}
               </ul>
-              <p className="disclaimer">Reflections are saved with this month. They are not part of the footprint.</p>
             </>
           ) : null}
           <button className="btn-primary" type="button" onClick={onDone}>

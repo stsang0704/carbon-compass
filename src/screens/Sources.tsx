@@ -4,7 +4,6 @@ import { SourceSheet } from "../components/SourceSheet";
 import { UsCompareChart } from "../components/UsCompareChart";
 import { habitMeta } from "../data/habits";
 import { calculate, lineForHabit } from "../model/calculate";
-import { formatGasolineGallons } from "../model/format";
 import type { Answers, HabitId } from "../model/types";
 import { AVERAGES_NOTE } from "../model/types";
 
@@ -90,17 +89,9 @@ export function Sources({
   const current = calculate(baseline);
   const next = calculate(scenario);
   if (!focusHabitId) {
-    const gallons = formatGasolineGallons(current.totals.carbon);
     const explanation = (
       <>
-        <UsCompareChart carbonKg={current.totals.carbon} />
-        <article className="calc calc-summary">
-          <h3>Gasoline</h3>
-          <p>
-            That's comparable to the emissions from burning approximately {gallons} gallons of gasoline.
-          </p>
-          <p className="disclaimer">This is an emissions equivalence, not fuel you personally burned.</p>
-        </article>
+        {embedded ? null : <UsCompareChart carbonKg={current.totals.carbon} />}
         <details
           ref={sourcesRef}
           className="sources-disclosure"
@@ -121,22 +112,13 @@ export function Sources({
         </details>
       </>
     );
-    if (embedded) {
-      return (
-        <section className="understand-section" aria-labelledby="understand-footprint">
-          <h3 id="understand-footprint">Understand your footprint</h3>
-          <p className="lede">Context for this estimate. It is a comparison, not a verdict.</p>
-          {explanation}
-        </section>
-      );
-    }
+    if (embedded) return explanation;
     return (
       <PhoneShell
         hero={
           <>
             <p className="kicker">My Footprint</p>
             <h2>Understand</h2>
-            <p className="lede">Context for this estimate. It is a comparison, not a verdict.</p>
           </>
         }
       >

@@ -4,12 +4,15 @@ import { registerSW } from "virtual:pwa-register";
 import "@fontsource-variable/fraunces";
 import "@fontsource-variable/source-sans-3";
 import { App } from "./App";
+import { AuthProvider } from "./state/auth";
 import "./styles.css";
 
 registerSW({ immediate: true });
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </StrictMode>,
 );

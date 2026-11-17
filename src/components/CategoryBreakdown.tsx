@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Car, House, Leaf, Shirt, type LucideIcon } from "lucide-react";
 import { formatCarbon } from "../model/format";
 import { formatPotentialKg, formatPotentialPair, potentialCategoryBar } from "../model/potentialBar";
@@ -19,36 +18,17 @@ type Props = {
   title: string;
   footprint: Footprint;
   before?: Footprint;
-  caption?: string;
-  onOpenCategory?: (category: Category) => void;
 };
 
-export function CategoryBreakdown({
-  title,
-  footprint,
-  before,
-  caption,
-  onOpenCategory,
-}: Props) {
-  if (before) return <PotentialBars title={title} footprint={footprint} before={before} caption={caption} />;
-  return <ShareBreakdown title={title} footprint={footprint} onOpenCategory={onOpenCategory} />;
+export function CategoryBreakdown({ title, footprint, before }: Props) {
+  if (before) return <PotentialBars title={title} footprint={footprint} before={before} />;
+  return <ShareBreakdown title={title} footprint={footprint} />;
 }
 
-function PotentialBars({
-  title,
-  footprint,
-  before,
-  caption = "A possible footprint if these selected changes were adopted, not a confirmed reduction.",
-}: {
-  title: string;
-  footprint: Footprint;
-  before: Footprint;
-  caption?: string;
-}) {
+function PotentialBars({ title, footprint, before }: { title: string; footprint: Footprint; before: Footprint }) {
   return (
     <section className="breakdown">
       <h3>{title}</h3>
-      <p className="disclaimer">{caption}</p>
       <div className="breakdown-list">
         {categories.map((category) => {
           const originalKg = before.byCategory[category.id].carbon;
@@ -90,16 +70,7 @@ function PotentialBars({
   );
 }
 
-function ShareBreakdown({
-  title,
-  footprint,
-  onOpenCategory,
-}: {
-  title: string;
-  footprint: Footprint;
-  onOpenCategory?: (category: Category) => void;
-}) {
-  const [openId, setOpenId] = useState<Category | null>(null);
+function ShareBreakdown({ title, footprint }: { title: string; footprint: Footprint }) {
   const rows = categories
     .map((category) => ({ ...category, value: footprint.byCategory[category.id].carbon }))
     .sort((left, right) => right.value - left.value);
@@ -112,16 +83,9 @@ function ShareBreakdown({
         {rows.map((row) => {
           const parts = formatCarbon(row.value);
           const share = total > 0 ? Math.round((row.value / total) * 100) : 0;
-          const open = openId === row.id;
-          const lines = footprint.lines.filter((line) => line.category === row.id);
           return (
-            <article key={row.id} className={`breakdown-card breakdown-share breakdown-share-${row.id} ${open ? "is-open" : ""}`}>
-              <button
-                className="breakdown-head"
-                type="button"
-                onClick={() => setOpenId((current) => (current === row.id ? null : row.id))}
-                aria-expanded={open}
-              >
+            <article key={row.id} className={`breakdown-card breakdown-share breakdown-share-${row.id}`}>
+              <div className="breakdown-head is-static">
                 <CategoryGlyph id={row.id} size={36} />
                 <span className="breakdown-copy">
                   <span className="breakdown-label">
@@ -134,27 +98,7 @@ function ShareBreakdown({
                     <span style={{ width: `${Math.max(share, valueWidth(share))}%` }} />
                   </span>
                 </span>
-                <span className="rec-arrow" aria-hidden="true">
-                  →
-                </span>
-              </button>
-              {open ? (
-                <div className="breakdown-panel">
-                  {lines.map((line) => {
-                    const lineParts = formatCarbon(line.carbon);
-                    return (
-                      <p key={line.id} className="quiet">
-                        {line.title}: {lineParts.value} {lineParts.unit}
-                      </p>
-                    );
-                  })}
-                  {onOpenCategory ? (
-                    <button className="text-button breakdown-link" type="button" onClick={() => onOpenCategory(row.id)}>
-                      See changes in {row.label}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+              </div>
             </article>
           );
         })}
