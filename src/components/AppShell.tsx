@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type TouchEvent } from "react";
 import { ChartColumn, Compass, UserRound, UsersRound, type LucideIcon } from "lucide-react";
+import { ProfileMark } from "./ProfileMark";
 
 export type Destination = "together" | "explore" | "impact";
 export type PaneIndex = number;
@@ -20,15 +21,20 @@ type Props = {
   panes: Record<Destination, PaneIndex>;
   onDestination: (destination: Destination) => void;
   onPane: (destination: Destination, pane: PaneIndex) => void;
+  avatarUrl: string | null;
   onAccount: () => void;
   views: Record<Destination, ReactNode[]>;
 };
 
-export function AppShell({ destination, panes, onDestination, onPane, onAccount, views }: Props) {
+export function AppShell({ destination, panes, onDestination, onPane, avatarUrl, onAccount, views }: Props) {
   return (
     <div className="app-shell">
       <button className="account-launch" type="button" aria-label="Profile and settings" onClick={onAccount}>
-        <UserRound size={22} strokeWidth={1.75} absoluteStrokeWidth />
+        <ProfileMark
+          url={avatarUrl}
+          className="account-launch-photo"
+          fallback={<UserRound size={22} strokeWidth={1.75} absoluteStrokeWidth />}
+        />
       </button>
       {destinations.map((item) => (
         <section

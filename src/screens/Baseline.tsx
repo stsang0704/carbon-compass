@@ -15,7 +15,7 @@ export function Baseline({
 }: {
   initial?: Answers;
   onDone: (answers: Answers) => void;
-  onBack: () => void;
+  onBack?: () => void;
   backLabel?: string;
   doneLabel?: string;
 }) {
@@ -32,10 +32,7 @@ export function Baseline({
 
   return (
     <PhoneShell
-      onBack={() => {
-        if (step === 0) onBack();
-        else setStep((current) => current - 1);
-      }}
+      onBack={step > 0 ? () => setStep((current) => current - 1) : onBack}
       backLabel={step === 0 ? backLabel : "Previous question"}
       hero={
         <>

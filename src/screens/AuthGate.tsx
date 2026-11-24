@@ -1,23 +1,25 @@
 import { useState, type FormEvent } from "react";
 import { Leaf } from "lucide-react";
+import { BrandLockup } from "../components/Illustrations";
 import { PhoneShell } from "../components/PhoneShell";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../state/auth";
 
 type View = "login" | "signup" | "forgot" | "check-email";
 
-export function AuthGate() {
+export function AuthGate({ initialView = "login", onBack }: { initialView?: "login" | "signup"; onBack: () => void }) {
   const { configured } = useAuth();
-  const [view, setView] = useState<View>("login");
+  const [view, setView] = useState<View>(initialView);
   const [notice, setNotice] = useState("");
+  const atWelcome = view === "login" || view === "signup";
 
   return (
     <PhoneShell
-      onBack={view === "login" ? undefined : () => { setNotice(""); setView("login"); }}
-      backLabel="Back to log in"
+      onBack={atWelcome ? () => { setNotice(""); onBack(); } : () => { setNotice(""); setView("login"); }}
+      backLabel={atWelcome ? "Back" : "Back to log in"}
       hero={
         <>
-          <p className="kicker">Carbon Compass</p>
+          <BrandLockup />
           <h2>{heading(view)}</h2>
           <p className="lede">{lede(view)}</p>
         </>
@@ -88,7 +90,7 @@ export function ResetPassword({ onDone }: { onDone: () => void }) {
     <PhoneShell
       hero={
         <>
-          <p className="kicker">Carbon Compass</p>
+          <BrandLockup />
           <h2>Choose a new password.</h2>
           <p className="lede">Use at least 6 characters. You’ll stay signed in on this device.</p>
         </>

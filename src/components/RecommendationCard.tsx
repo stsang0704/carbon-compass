@@ -11,16 +11,32 @@ type Props = {
   added: boolean;
   rank?: number;
   savedKg?: number;
+  showDifficulty?: boolean;
+  showCategory?: boolean;
+  impactAsPill?: boolean;
+  onMethod?: () => void;
   onToggle: () => void;
 };
 
-export function RecommendationCard({ rec, baseline, added, rank, savedKg, onToggle }: Props) {
+export function RecommendationCard({
+  rec,
+  baseline,
+  added,
+  rank,
+  savedKg,
+  showDifficulty = true,
+  showCategory = true,
+  impactAsPill = false,
+  onMethod,
+  onToggle,
+}: Props) {
   const [open, setOpen] = useState(false);
   const saved = savedKg ?? recommendationSavedKg(baseline, rec);
   const share = shareOfTypicalYear(saved);
   const note = recommendationNote(baseline, rec);
   const shareTag = shortShare(share.percent);
   const categoryLabel = categories.find((item) => item.id === rec.category)?.label;
+  const impactLabel = `↓ ${Math.round(saved).toLocaleString("en-US")} kg CO₂e / year`;
   return (
     <article className={`rec-card ${open ? "is-open" : ""} ${added ? "is-added" : ""}`}>
       <button className="rec-head" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
@@ -32,11 +48,14 @@ export function RecommendationCard({ rec, baseline, added, rank, savedKg, onTogg
         <span className="rec-details">{open ? "Hide" : "Details"}</span>
       </button>
       <div className="rec-tags">
-        {categoryLabel ? <p className="rec-category">{categoryLabel}</p> : null}
-        <p className={`difficulty-pill difficulty-${rec.difficulty}`}>{difficultyLabel[rec.difficulty]}</p>
+        {showCategory && categoryLabel ? <p className="rec-category">{categoryLabel}</p> : null}
+        {showDifficulty ? (
+          <p className={`difficulty-pill difficulty-${rec.difficulty}`}>{difficultyLabel[rec.difficulty]}</p>
+        ) : null}
         {shareTag ? <p className="rec-share-tag">{shareTag}</p> : null}
+        {impactAsPill ? <p className="rec-share-tag">{impactLabel}</p> : null}
       </div>
-      <p className="rec-impact">↓ {Math.round(saved).toLocaleString("en-US")} kg CO₂e / year</p>
+      {impactAsPill ? null : <p className="rec-impact">{impactLabel}</p>}
       {added ? <p className="rec-added-label">Added to my changes</p> : null}
       <div className="rec-panel">
         <div className="rec-panel-inner" inert={!open}>
@@ -46,6 +65,11 @@ export function RecommendationCard({ rec, baseline, added, rank, savedKg, onTogg
           <p>{rec.why}</p>
           {note ? <p>{note}</p> : null}
           <p>Overlapping cuts are counted once.</p>
+          {onMethod ? (
+            <button className="method-link" type="button" onClick={onMethod}>
+              How was this calculated?
+            </button>
+          ) : null}
           <div className="rec-actions">
             <button
               className={`btn-primary rec-add ${added ? "is-added" : ""}`}

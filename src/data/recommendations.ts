@@ -267,6 +267,32 @@ export function isRecId(value: unknown): value is RecId {
   return typeof value === "string" && recIds.has(value as RecId);
 }
 
+/** Existing footprint line that explains this suggestion. No new sources. */
+const methodSectionByRec: Record<RecId, string> = {
+  "food-waste-less": "food-waste",
+  "food-one-beef": "diet",
+  "food-plant-meal": "diet",
+  "food-meatless-monday": "diet",
+  "food-mostly-plant": "diet",
+  "food-occasional-beef": "diet",
+  "travel-combine": "driving",
+  "travel-walk": "driving",
+  "travel-transit": "driving",
+  "travel-flights": "flights",
+  "home-showers": "showers",
+  "home-thermostat": "heating",
+  "home-thermostat-further": "heating",
+  "home-insulation": "heating",
+  "clothes-one-fewer": "clothes",
+  "clothes-repair": "clothes",
+  "clothes-fewer": "clothes",
+  "clothes-secondhand": "clothes",
+};
+
+export function methodSectionFor(id: RecId): string {
+  return methodSectionByRec[id];
+}
+
 export function recommendationById(id: RecId): Recommendation {
   const rec = recommendations.find((item) => item.id === id);
   if (!rec) throw new Error(`Unknown recommendation ${id}`);

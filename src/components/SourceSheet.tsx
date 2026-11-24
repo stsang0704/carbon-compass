@@ -1,3 +1,5 @@
+import { Car } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { factors, published, usPerCapitaKgCo2e } from "../data/factors";
 import { lifestyleCompare, typicalUsLifestyleKg } from "../model/compare";
 import {
@@ -24,6 +26,10 @@ type Props = {
   embedded?: boolean;
   /** Leaves out recommendation-share and selected-change notes. */
   omitRecommendationNotes?: boolean;
+  /** Opens and scrolls to one existing section, such as "diet" or "driving". */
+  focusId?: string | null;
+  /** Keeps section ids unique when more than one sheet is mounted. */
+  anchorPrefix?: string;
 };
 
 export function SourceSheet({
@@ -36,18 +42,96 @@ export function SourceSheet({
   onClose,
   embedded = false,
   omitRecommendationNotes = false,
+  focusId = null,
+  anchorPrefix = "method",
 }: Props) {
+  const sectionIds = [
+    comparisonKg !== undefined ? "us-comparison" : null,
+    comparisonKg !== undefined && !omitRecommendationNotes ? "typical-share" : null,
+    savedKg !== undefined && !omitRecommendationNotes ? "saved-compare" : null,
+    ...footprint.lines.map((line) => line.id),
+    "driving-equivalencies",
+  ].filter((id): id is string => Boolean(id));
+  const [openIds, setOpenIds] = useState<string[]>(() =>
+    focusId && sectionIds.includes(focusId) ? [focusId] : sectionIds.length === 1 ? sectionIds : [],
+  );
+
+  useEffect(() => {
+    if (!focusId) return;
+    setOpenIds((current) => (current.includes(focusId) ? current : [...current, focusId]));
+    document.getElementById(`${anchorPrefix}-${focusId}`)?.scrollIntoView({ block: "start" });
+  }, [anchorPrefix, focusId]);
+
+  function toggleSection(id: string, open: boolean) {
+    setOpenIds((current) => {
+      const has = current.includes(id);
+      if (open === has) return current;
+      return open ? [...current, id] : current.filter((item) => item !== id);
+    });
+  }
+
   const body = (
     <>
       {embedded ? <p className="sources-disclosure-intro">{intro}</p> : null}
       <p className="disclaimer">{ENERGY_MIX_NOTE}</p>
-      {comparisonKg !== undefined ? <LifestyleCompare carbonKg={comparisonKg} /> : null}
-      {comparisonKg !== undefined && !omitRecommendationNotes ? <TypicalShareNote /> : null}
-      {savedKg !== undefined && !omitRecommendationNotes ? <SavedCompare savedKg={savedKg} /> : null}
+      {comparisonKg !== undefined ? (
+          <MethodSection
+          anchorPrefix={anchorPrefix}
+          id="us-comparison"
+          title="U.S. comparison"
+          open={openIds.includes("us-comparison")}
+          onToggle={(open) => toggleSection("us-comparison", open)}
+        >
+          <LifestyleCompare carbonKg={comparisonKg} />
+        </MethodSection>
+      ) : null}
+      {comparisonKg !== undefined && !omitRecommendationNotes ? (
+          <MethodSection
+          anchorPrefix={anchorPrefix}
+          id="typical-share"
+          title="Share of a comparable average person"
+          open={openIds.includes("typical-share")}
+          onToggle={(open) => toggleSection("typical-share", open)}
+        >
+          <TypicalShareNote />
+        </MethodSection>
+      ) : null}
+      {savedKg !== undefined && !omitRecommendationNotes ? (
+          <MethodSection
+          anchorPrefix={anchorPrefix}
+          id="saved-compare"
+          title="What your changes are worth"
+          open={openIds.includes("saved-compare")}
+          onToggle={(open) => toggleSection("saved-compare", open)}
+        >
+          <SavedCompare savedKg={savedKg} />
+        </MethodSection>
+      ) : null}
       {footprint.lines.map((line) => {
         const before = baseline?.lines.find((item) => item.id === line.id);
-        return <LineBlock key={line.id} line={line} before={before} />;
+        return (
+          <MethodSection
+            key={line.id}
+            anchorPrefix={anchorPrefix}
+            id={line.id}
+            title={line.title}
+            open={openIds.includes(line.id)}
+            onToggle={(open) => toggleSection(line.id, open)}
+          >
+            <LineBlock line={line} before={before} />
+          </MethodSection>
+        );
       })}
+      <MethodSection
+        anchorPrefix={anchorPrefix}
+        id="driving-equivalencies"
+        title="Driving equivalencies"
+        icon={<Car size={22} strokeWidth={1.75} />}
+        open={openIds.includes("driving-equivalencies")}
+        onToggle={(open) => toggleSection("driving-equivalencies", open)}
+      >
+        <DrivingEquivalencies />
+      </MethodSection>
     </>
   );
 
@@ -83,7 +167,6 @@ function LineBlock({ line, before }: { line: ImpactLine; before?: ImpactLine }) 
     : null;
   return (
     <article className="calc">
-      <h3>{line.title}</h3>
       <p className="quiet">
         {figure("carbon", line.carbon)} · {figure("water", line.water)} · {figure("energy", line.energy)}
       </p>
@@ -100,14 +183,18 @@ function LineBlock({ line, before }: { line: ImpactLine; before?: ImpactLine }) 
           : "No tap-water total on this row."}{" "}
         {energyKindCopy(line.energyKind)}
       </p>
+      <h4 className="method-label">How it is calculated</h4>
       <ol className="steps">
         {line.steps.map((step) => (
           <li key={step}>{step}</li>
         ))}
       </ol>
+      <h4 className="method-label">Sources and assumptions</h4>
       {line.factorIds.map((id) => (
         <FactorCard key={id} id={id} />
       ))}
+      <h4 className="method-label">Driving equivalent</h4>
+      <FactorCard id="driving-equivalent" />
     </article>
   );
 }
@@ -116,7 +203,7 @@ function LifestyleCompare({ carbonKg }: { carbonKg: number }) {
   const compare = lifestyleCompare(carbonKg);
   return (
     <article className="calc">
-      <h3>U.S. comparison</h3>
+      <h4 className="method-label">How it is calculated</h4>
       <p className="quiet">
         A typical U.S. year in this model is {compare.typicalLabel}. {compare.percentLine}
       </p>
@@ -134,6 +221,7 @@ function LifestyleCompare({ carbonKg }: { carbonKg: number }) {
           power, so it is a wider picture than this lifestyle year.
         </li>
       </ol>
+      <h4 className="method-label">Sources and assumptions</h4>
       <FactorCard id="us-typical-year" />
       <FactorCard id="us-inventory-capita" />
     </article>
@@ -145,7 +233,7 @@ function TypicalShareNote() {
   const typical = formatCarbon(typicalKg);
   return (
     <article className="calc">
-      <h3>Share of a comparable average person</h3>
+      <h4 className="method-label">How it is calculated</h4>
       <p className="quiet">
         Each recommendation's kg saving is divided by this model's typical U.S. year, the same scope as
         your survey.
@@ -161,6 +249,7 @@ function TypicalShareNote() {
           cuts are counted once.
         </li>
       </ol>
+      <h4 className="method-label">Sources and assumptions</h4>
       <FactorCard id="us-typical-year" />
     </article>
   );
@@ -174,7 +263,7 @@ function SavedCompare({ savedKg }: { savedKg: number }) {
   const trees = formatTreeCount(savedKg);
   return (
     <article className="calc">
-      <h3>What your changes are worth</h3>
+      <h4 className="method-label">How it is calculated</h4>
       {equivalence.kind === "miles" ? (
         <p className="quiet">≈ {miles} miles of driving avoided</p>
       ) : null}
@@ -244,9 +333,79 @@ function SavedCompare({ savedKg }: { savedKg: number }) {
           </>
         ) : null}
       </ol>
+      <h4 className="method-label">Driving equivalent</h4>
       <FactorCard id="driving-equivalent" />
       <FactorCard id="urban-tree" />
     </article>
+  );
+}
+
+function DrivingEquivalencies() {
+  const perMile = published.vehicleKgCo2ePerMile;
+  const factor = factors["driving-equivalent"];
+  const perMileLabel = plainNumber(perMile, 3);
+  return (
+    <article className="calc">
+      <h4 className="method-label">Source</h4>
+      <p className="quiet">U.S. Environmental Protection Agency (EPA), Greenhouse Gas Equivalencies Calculator.</p>
+      <h4 className="method-label">Conversion factor</h4>
+      <p className="method-factor">{perMileLabel} kg CO₂e</p>
+      <p className="method-factor-note">per mile driven by an average gasoline-powered passenger vehicle.</p>
+      <h4 className="method-label">Calculation</h4>
+      <p className="method-formula">Miles driven equivalent = kg CO₂e saved ÷ {perMileLabel}</p>
+      <h4 className="method-label">Explanation</h4>
+      <p className="quiet">
+        Carbon Compass converts estimated emissions reductions into equivalent miles driven by an average
+        gasoline-powered vehicle to help users understand their potential environmental impact.
+      </p>
+      <h4 className="method-label">Disclaimer</h4>
+      <p className="disclaimer">
+        Driving equivalencies are illustrative comparisons, not actual miles of driving avoided. Values are
+        estimates based on average U.S. gasoline-powered passenger vehicles.
+      </p>
+      <a className="method-source" href={factor.url} target="_blank" rel="noreferrer">
+        Open the source
+      </a>
+    </article>
+  );
+}
+
+function MethodSection({
+  id,
+  title,
+  open,
+  onToggle,
+  children,
+  anchorPrefix,
+  icon,
+}: {
+  id: string;
+  title: string;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  children: ReactNode;
+  anchorPrefix: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <details
+      id={`${anchorPrefix}-${id}`}
+      className="method-section"
+      open={open}
+      onToggle={(event) => onToggle(event.currentTarget.open)}
+    >
+      <summary>
+        <span className="method-summary-label">
+          {icon ? (
+            <span className="method-summary-icon" aria-hidden="true">
+              {icon}
+            </span>
+          ) : null}
+          <span>{title}</span>
+        </span>
+      </summary>
+      <div className="method-body">{children}</div>
+    </details>
   );
 }
 

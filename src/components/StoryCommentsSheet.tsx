@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { ProfileMark } from "./ProfileMark";
 import {
   addStoryComment,
   deleteStoryComment,
@@ -13,6 +14,7 @@ type Props = {
   storyId: string;
   title: string;
   userId: string | null;
+  profilePhotoUrl: string | null;
   live: StoryComment[];
   demo: StoryThread[];
   loadError: string | null;
@@ -24,6 +26,7 @@ export function StoryCommentsSheet({
   storyId,
   title,
   userId,
+  profilePhotoUrl,
   live,
   demo,
   loadError,
@@ -135,6 +138,7 @@ export function StoryCommentsSheet({
                 key={thread.id}
                 thread={thread}
                 userId={userId}
+                profilePhotoUrl={profilePhotoUrl}
                 canReply={canReply}
                 onReply={setReplyTo}
                 editingId={editingId}
@@ -188,6 +192,7 @@ export function StoryCommentsSheet({
 function CommentThread({
   thread,
   userId,
+  profilePhotoUrl = null,
   canReply,
   onReply,
   editingId,
@@ -202,6 +207,7 @@ function CommentThread({
 }: {
   thread: StoryThread;
   userId: string | null;
+  profilePhotoUrl?: string | null;
   canReply?: boolean;
   onReply?: (comment: StoryComment) => void;
   editingId?: string | null;
@@ -219,6 +225,7 @@ function CommentThread({
       <CommentRow
         comment={thread}
         userId={userId}
+        profilePhotoUrl={profilePhotoUrl}
         canReply={canReply}
         onReply={onReply}
         editingId={editingId}
@@ -238,6 +245,7 @@ function CommentThread({
               key={reply.id}
               comment={reply}
               userId={userId}
+              profilePhotoUrl={profilePhotoUrl}
               editingId={editingId}
               editDraft={editDraft}
               confirmDeleteId={confirmDeleteId}
@@ -258,6 +266,7 @@ function CommentThread({
 function CommentRow({
   comment,
   userId,
+  profilePhotoUrl = null,
   canReply,
   onReply,
   editingId,
@@ -272,6 +281,7 @@ function CommentRow({
 }: {
   comment: StoryComment;
   userId: string | null;
+  profilePhotoUrl?: string | null;
   canReply?: boolean;
   onReply?: (comment: StoryComment) => void;
   editingId?: string | null;
@@ -291,8 +301,12 @@ function CommentRow({
   const initial = deleted ? "" : comment.authorName.trim().charAt(0).toUpperCase() || "M";
   return (
     <div className="story-comment">
-      <span className={`story-avatar ${comment.demo ? "is-demo" : ""}`} aria-hidden="true">
-        {initial}
+      <span className={`story-avatar ${comment.demo ? "is-demo" : ""} ${mine && profilePhotoUrl ? "has-photo" : ""}`} aria-hidden="true">
+        {mine && profilePhotoUrl ? (
+          <ProfileMark url={profilePhotoUrl} className="cc-user-photo" fallback={initial} />
+        ) : (
+          initial
+        )}
       </span>
       <div>
         <p className="story-comment-meta">

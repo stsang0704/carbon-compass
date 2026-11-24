@@ -10,10 +10,12 @@ import { Baseline } from "./screens/Baseline";
 import { CheckIn } from "./screens/CheckIn";
 import { Compass } from "./screens/Compass";
 import { Explore, type ExploreFocus } from "./screens/Explore";
+import { Methodology } from "./screens/Methodology";
 import { Together } from "./screens/Together";
 import { Welcome } from "./screens/Welcome";
 import { fetchAccount, saveFootprint } from "./state/accountData";
 import { useAuth } from "./state/auth";
+import { loadProfilePhoto, type ProfilePhoto } from "./state/profilePhoto";
 import { clearProfile, loadProfile, recordCheckIn, saveProfile, scenarioOf, withMonthRecord } from "./state/profile";
 import type { Profile } from "./state/profile";
 import type { Answers, Category } from "./model/types";
@@ -43,7 +45,21 @@ export function App() {
   const [exploreFocus, setExploreFocus] = useState<ExploreFocus>("for-you");
   const [exploreJump, setExploreJump] = useState(0);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [methodFocus, setMethodFocus] = useState<string | null>(null);
+  const [methodOpen, setMethodOpen] = useState(false);
   const seenUser = useRef<string | null | undefined>(undefined);
+  const [entry, setEntry] = useState<"login" | "signup" | null>(null);
+  const [entryUser, setEntryUser] = useState<string | null>(userId ?? null);
+  const [avatar, setAvatar] = useState<ProfilePhoto>({ path: null, url: null });
+  const [avatarUser, setAvatarUser] = useState<string | null>(userId ?? null);
+  if ((userId ?? null) !== avatarUser) {
+    setAvatarUser(userId ?? null);
+    setAvatar({ path: null, url: null });
+  }
+  if ((userId ?? null) !== entryUser) {
+    setEntryUser(userId ?? null);
+    setEntry(null);
+  }
   const accountReady = !userId || loadedFor === userId;
 
   useEffect(() => {
@@ -78,10 +94,21 @@ export function App() {
       setProfile(next);
       setScreen((current) => {
         if (current.name === "baseline" || current.name === "check-in" || current.name === "account") return current;
-        return next ? { name: "app" } : { name: "welcome" };
+        return next ? { name: "app" } : { name: "baseline", editing: false };
       });
       setLoadedFor(userId);
     })();
+    return () => {
+      cancel = true;
+    };
+  }, [ready, configured, userId]);
+
+  useEffect(() => {
+    if (!ready || !configured || !userId) return;
+    let cancel = false;
+    void loadProfilePhoto().then((photo) => {
+      if (!cancel) setAvatar(photo);
+    });
     return () => {
       cancel = true;
     };
@@ -125,6 +152,11 @@ export function App() {
     openView("impact", 0);
   }
 
+  function openMethod(focus: string | null) {
+    setMethodFocus(focus);
+    setMethodOpen(true);
+  }
+
   function editBaseline(baseline: Answers) {
     setProfile((current) => {
       if (!current) return current;
@@ -161,34 +193,42 @@ export function App() {
 
   if (!ready) return <AuthStatus label="Loading…" />;
   if (recovery && session) return <ResetPassword onDone={clearRecovery} />;
-  if (!session || !userId) return <AuthGate />;
+  if (!session || !userId) {
+    if (entry) return <AuthGate initialView={entry} onBack={() => setEntry(null)} />;
+    return <Welcome onGetStarted={() => setEntry("signup")} onSignIn={() => setEntry("login")} />;
+  }
   if (!accountReady) return <AuthStatus label="Loading your footprint…" />;
 
   return (
     <>
       {screen.name === "account" ? (
-        <Account
-          userId={userId}
-          email={session.user.email ?? ""}
-          profile={profile}
-          onBack={() => setScreen({ name: "app" })}
-          onLoggedOut={() => {
-            setProfile(null);
-            setScreen({ name: "welcome" });
-          }}
-        />
+        <div hidden={methodOpen}>
+          <Account
+            userId={userId}
+            email={session.user.email ?? ""}
+            profile={profile}
+            avatar={avatar}
+            onAvatarChange={setAvatar}
+            onBack={() => setScreen({ name: "app" })}
+            onLoggedOut={() => {
+              setProfile(null);
+              setScreen({ name: "welcome" });
+            }}
+            onMethod={() => openMethod(null)}
+          />
+        </div>
       ) : null}
-      {screen.name === "welcome" ? <Welcome onStart={() => setScreen({ name: "baseline", editing: false })} /> : null}
       {screen.name === "baseline" ? (
         <Baseline
           initial={profile?.baseline}
-          backLabel={screen.editing ? "My Footprint" : "Back to welcome"}
+          backLabel={screen.editing ? "My Footprint" : "Back"}
           doneLabel={screen.editing ? "Update my footprint" : "See your results"}
-          onBack={() => (screen.editing ? openView("impact", 0) : setScreen({ name: "welcome" }))}
+          onBack={screen.editing ? () => openView("impact", 0) : undefined}
           onDone={screen.editing ? editBaseline : finishBaseline}
         />
       ) : null}
       {screen.name === "app" && profile && scenario ? (
+        <div className="app-frame" hidden={methodOpen}>
         <AppShell
           destination={destination}
           panes={panes}
@@ -196,6 +236,7 @@ export function App() {
           onPane={(nextDestination, pane) =>
             setPanes((current) => ({ ...current, [nextDestination]: pane }))
           }
+          avatarUrl={avatar.url}
           onAccount={() => setScreen({ name: "account" })}
           views={{
             together: [
@@ -203,6 +244,7 @@ export function App() {
                 key="together"
                 selected={selected}
                 onTry={toggleRec}
+                profilePhotoUrl={avatar.url}
                 onBrowse={(category) => {
                   setBrowseCategory(category);
                   openExplore("browse");
@@ -223,6 +265,7 @@ export function App() {
                 onToggle={toggleRec}
                 onBack={() => openView("impact", 0)}
                 onSources={showSources}
+                onExplain={openMethod}
               />,
             ],
             impact: [
@@ -239,6 +282,14 @@ export function App() {
               />,
             ],
           }}
+        />
+        </div>
+      ) : null}
+      {methodOpen && profile && scenario ? (
+        <Methodology
+          baseline={profile.baseline}
+          focusId={methodFocus}
+          onClose={() => setMethodOpen(false)}
         />
       ) : null}
       {screen.name === "check-in" && profile ? (

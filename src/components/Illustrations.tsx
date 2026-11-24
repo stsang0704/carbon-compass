@@ -18,10 +18,32 @@ const portraits: Record<
 
 export function LogoLeaf({ className }: SvgProps) {
   return (
-    <svg className={className} viewBox="0 0 28 28" aria-hidden="true">
-      <path d="M14 25c-6-4-9-9-9-14 6 0 10 2 13 6 1-6 5-10 10-12-1 8-4 14-14 20z" fill="#3f8f6b" />
-      <path d="M14 25c2-6 2-10 1-16" fill="none" stroke="#e7f6ec" strokeWidth="1.4" strokeLinecap="round" />
+    <svg className={className ?? "brand-leaf"} viewBox="0 0 140 112" aria-hidden="true">
+      <path
+        fill="#53745e"
+        d="M8 24c2 .7 6.7 3.7 10 6 3.3 2.3 7 5.3 10 8 3 2.7 6.3 4.7 8 8 1.7 3.3 2.3 8 2 12-.3 4-2.7 8.3-4 12-1.3 3.7-2.3 6.7-4 10-1.7 3.3-4.3 7.3-6 10-1.7 2.7-2 6.3-4 6s-5.7-4.7-8-8c-2.3-3.3-4.5-8-6-12-1.5-4-2.2-8-3-12-.8-4-1.7-8-2-12-.3-4-.5-8.7 0-12 .5-3.3 2.2-5.7 3-8 .8-2.3 1.3-4.7 2-6 .7-1.3 0-2.7 2-2Z"
+      />
+      <path
+        fill="#799578"
+        d="M125 1c2.7.8 7.3 1.8 9 5 1.7 3.2.8 9 .2 14-.2 5 .3 11.3 0 16-.3 4.7-.8 7.7-2 12-1.2 4.3-2.8 9.3-5 14-2.2 4.7-4.7 9.3-8 14-3.3 4.7-7.3 9.7-12 14-4.7 4.3-10 8.8-16 12-6 3.2-14 6-20 7-6 1-11.7.5-16-1-4.3-1.5-7.7-4.3-10-8-2.3-3.7-3.5-9-4-14-.5-5 .2-11 1-16 .8-5 2.3-9.3 4-14 1.7-4.7 3.5-9.3 6-14 2.5-4.7 5.5-9.7 9-14 3.5-4.3 7.7-8.7 12-12 4.3-3.3 8.7-5.8 14-8 5.3-2.2 13-3.8 18-5 5-1.2 8.8-1.7 12-2 3.2-.3 4.3-.8 7-1Z"
+      />
+      <path
+        d="M97 46c-4 5.2-10 13-19 24-6 7.3-13 15-20 22"
+        fill="none"
+        stroke="#fdf9f2"
+        strokeWidth="7.5"
+        strokeLinecap="round"
+      />
     </svg>
+  );
+}
+
+export function BrandLockup({ className }: { className?: string }) {
+  return (
+    <p className={className ? `brand-lockup ${className}` : "brand-lockup"}>
+      <LogoLeaf />
+      <span>Carbon Compass</span>
+    </p>
   );
 }
 
